@@ -1,63 +1,47 @@
 # IB Gateway Docker
 ## Step-by-step Instructions
 
-### Clone this repository
-`gh repo clone AlgoGators/ib-gateway`
-
-### Installing IBC
-- Download the 3.18.0 version for Linux [here](https://github.com/IbcAlpha/IBC/releases/tag/3.18.0-Update.1)
-- Unzip the folder and place it in this repository (naming it `ibc`)
-
 ### Installing IB Gateway (optional)
 - Download the stable version for Linux x64 [here](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php)
 - Place the file `ibgateway-stable-standalone-linux-x64.sh` inside the installer folder, naming it `ibgateway-<VERSION_NUMBER>-linux-x64.sh`
 
-### Creating .env file with Private Settings
-Create a file in the directory named .env, it should look like this:
+## Running ib-gateway:
+This relies on [gnzsnz](https://github.com/gnzsnz)'s [ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker) repository.
+1. Clone the repository to desired machine.
+2. Create a .env in the root of the reopository.
+3. Inside this file, copy the following, change userName and passWord:
 ```
-IBKR_USERNAME=USERNAME
-IBKR_PASSWORD=PASSWORD
-API_PORT=4002
-SOCAT_PORT=4004
+TWS_USERID=userName
+TWS_PASSWORD=passWord
+# ib-gateway
+#TWS_SETTINGS_PATH=/home/ibgateway/Jts
+# tws
+#TWS_SETTINGS_PATH=/config/tws_settings
+TWS_SETTINGS_PATH=
+TWS_ACCEPT_INCOMING=
 TRADING_MODE=paper
 READ_ONLY_API=no
+VNC_SERVER_PASSWORD=myVncPassword
+TWOFA_TIMEOUT_ACTION=restart
+BYPASS_WARNING=
+AUTO_RESTART_TIME=11:59 PM
+AUTO_LOGOFF_TIME=
+TWS_COLD_RESTART=
+SAVE_TWS_SETTINGS=
+RELOGIN_AFTER_2FA_TIMEOUT=yes
+TIME_ZONE=Europe/Zurich
+CUSTOM_CONFIG=
+SSH_TUNNEL=
+SSH_OPTIONS=
+SSH_ALIVE_INTERVAL=
+SSH_ALIVE_COUNT=
+SSH_PASSPHRASE=
+SSH_REMOTE_PORT=
+SSH_USER_TUNNEL=
+SSH_RESTART=
+SSH_VNC_PORT=
 ```
-
-Make sure to update the line in the dockerfile for the current version of IB Gateway: 
-`ENV IB_GATEWAY_VERSION=1019`
-
-#### NOTE:
-Only paper trading is support right now, so make sure:
-```
-API_PORT=4002 # Port IB Gateway listens to for paper trading
-SOCAT_PORT=4004
-TRADING_MODE=paper
-```
-If you wish to use live trading, you must make the settings:
-```
-API_PORT=4001 # Port IB Gateway listens to for live trading
-SOCAT_PORT=4003
-TRADING_MODE=live
-```
-And include in your docker-compose file:
-```
-ports:
-    - "127.0.0.1:4001:4003" # Expose IB Gateway live trading port
-```
-__BOTH__ paper and live trading is not supported in any form as of yet.
-
-### Building the Docker container
-From the repository directory:
-
-To build:
-```
-docker build -f Dockerfile.ib-gateway -t ib-gateway .
-```
-
-To run:
-```
-docker run --env .env -d -p 127.0.0.1:4002:4004 ib-gateway
-```
+4. Run docker-compose up
 
 ### Laptop Performance Issues
 If you're on a laptop, or older desktop, and you noticed Docker is taking significant resources, try going to %UserProfile%\ and creating (if it does not exist) .wslconfig and adding to it:
