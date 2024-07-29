@@ -1,0 +1,3 @@
+# Algo-Trade
+
+Algo Trade is a Python application... 

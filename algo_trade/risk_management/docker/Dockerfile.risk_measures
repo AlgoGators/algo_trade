@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY risk_measures/risk_measures.py ./risk_measures/risk_measures.py
+COPY risk_measures/app.py ./app.py
+
+CMD [ "python", "app.py"]

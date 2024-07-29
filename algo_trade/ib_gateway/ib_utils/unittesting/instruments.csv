@@ -1,0 +1,72 @@
+﻿assetDesc,assetClass,dataSymbol,ibSymbol,exchange,multiplier,currency
+BREUSD currency,FX,,BRE,CME,100000,USD
+Italian 10 year bond BTP,Bond,,BTP,EUREX,1000,EUR
+French equity index CAC40,Equity,FCE,CAC40,MONEP,10,EUR
+CADUSD currency,FX,6C,CAD,CME,100000,USD
+Cocoa NY,Ags,,CC,NYBOT,10,USD
+CHFUSD currency,FX,6S,CHF,CME,125000,USD
+Cotton #2,Ags,CT,CT,NYBOT,500,USD
+Robusta Coffee,Ags,LRC,D,ICEEUSOFT,10,USD
+Micro DAX 30 Index (Deutsche Aktien Xchange 30),Equity,FDAX,DAX,EUREX,1,EUR
+Dow Jones STOXX 600 Index,Equity,,DJ600,EUREX,50,EUR
+Milling Wheat Futures,Ags,,EBM,MATIF,50,EUR
+Netherlands equity index AEX,Equity,,EOE,FTA,200,EUR
+EURUSD currency,FX,6E,EUR,CME,125000,USD
+German 10 year bond Bund,Bond,,GBL,EUREX,1000,EUR
+GBPUSD currency,FX,6B,GBP,CME,62500,USD
+German Buxl 15 to 30 year bond,Bond,,GBX,EUREX,1000,EUR
+Feeder cattle,Ags,GF,GF,CME,500,USD
+Lean hogs,Ags,HE,HE,CME,400,USD
+Materials Select Sector Index,Sector,,IXB,CME,100,USD
+Energy Select Sector Index,Sector,,IXE,CME,100,USD
+Industrial Select Sector Index,Sector,,IXI,CME,100,USD
+Financial Select Sector Index,Sector,,IXM,CME,250,USD
+Consumer Staples Select Sector Index,Sector,,IXR,CME,100,USD
+Real Estate Select Sector Index,Sector,,IXRE,CME,250,USD
+Utilities Select Sector Index,Sector,,IXU,CME,100,USD
+Health Care Select Sector Index,Sector,,IXV,CME,100,USD
+JPYUSD currency,FX,6J,JPY,CME,12500000,USD
+Coffee,Ags,KC,KC,NYBOT,375,USD
+Hard Red Winter Wheat -KCBOT-,Ags,KE,KE,CBOT,50,USD
+Live cattle,Ags,LE,LE,CME,400,USD
+MSCI Emerging Markets Asia,Equity,,M1MS,EUREX,100,USD
+Micro E-Mini Russell 2000 Index,Equity,RTY,M2K,CME,5,USD
+AUDUSD micro,FX,6A,M6A,CME,10000,USD
+micro WTI crude oil,OilGas,WBS,MCL,NYMEX,100,USD
+S&P 500 micro,Equity,ES,MES,CME,5,USD
+Gold micro,Metals,GC,MGC,COMEX,10,USD
+Copper micro,Metals,HG,MHG,COMEX,2500,USD
+NASDAQ micro,Equity,NQ,MNQ,CME,2,USD
+RBOB Gasoline US (Micro),OilGas,RB,MRB,NYMEX,4200,USD
+MEXUSD currency,FX,6M,MXP,CME,500000,USD
+Micro E-Mini Dow Jones Industrial Average Index,Equity,YM,MYM,CBOT,0.5,USD
+NYSE FANG index,Equity,,NYFANG,NYBOT,5,USD
+NZDUSD currency,FX,6N,NZD,CME,100000,USD
+Platinum,Metals,PL,PL,NYMEX,50,USD
+Natural gas US mini,OilGas,,QG,NYMEX,2500,USD
+UK 10 year bonds Long Gilt,Bond,,R,ICEEU,1000,GBP
+YENEUR currency,FX,,RY,CME,125000,JPY
+Sugar #11,Ags,SB,SB,NYBOT,1120,USD
+SGX TSI Iron Ore Futures,Metals,,SCI,SGX,100,USD
+NYMEX Silver Index,Metals,SI,SI,COMEX,1000,USD
+Micro Swiss equity index SMI,Equity,FSMI,SMI,EUREX,10,CHF
+Dow Jones STOXX 600 Utilities,Sector,,SX6P,EUREX,50,EUR
+Dow Jones Euro STOXX Banks Index,Sector,,SX7E,EUREX,50,EUR
+Dow Jones STOXX 600 Technology,Sector,,SX8P,EUREX,50,EUR
+Dow Jones STOXX 600 Automobiles & Parts,Sector,,SXAP,EUREX,50,EUR
+Dow Jones STOXX 600 Healthcare,Sector,,SXDP,EUREX,50,EUR
+Dow Jones STOXX 600 Oil & Gas,Sector,,SXEP,EUREX,50,EUR
+Dow Jones STOXX 600 Insurance,Sector,,SXIP,EUREX,50,EUR
+Dow Jones STOXX 600 Basic Resources Index,Sector,,SXPP,EUREX,50,EUR
+Ultra Treasury Bond,Bond,UB,UB,CBOT,1000,USD
+Vol European equity V2X,Vol,,V2TX,EUREX,100,EUR
+Vol US equity VIX mini,Vol,VX,VXM,CFE,100,USD
+White sugar,Ags,LSU,W,ICEEUSOFT,50,USD
+FTSE/Xinhua China A50,Equity,SCN,XINA50,SGX,1,USD
+Soybean mini,Ags,ZS,YK,CBOT,10,USD
+Wheat mini,Ags,ZW,YW,CBOT,10,USD
+Corn,Ags,ZC,ZC,CBOT,50,USD
+Soybean oil,Ags,ZL,ZL,CBOT,600,USD
+Soybean Meal,Ags,ZM,ZM,CBOT,100,USD
+US 10 year bond note,Bond,ZN,ZN,CBOT,1000,USD
+Rough Rice,Ags,ZR,ZR,CBOT,2000,USD
