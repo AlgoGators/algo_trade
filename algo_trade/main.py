@@ -25,6 +25,7 @@ from algo_trade.data_engine.pipeline import Pipeline
 from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
 from algo_trade.risk_management.risk_measures.risk_functions import get_jump_covariances
 from algo_trade.risk_management.risk_measures.risk_measures import RiskMeasures
+from ib_gateway.ib_utils.update_portfolio import update_portfolio
 
 # from data_engine.pipeline import Pipeline
 # from risk_management.dyn_opt.dyn_opt import aggregator
@@ -114,6 +115,8 @@ def main():
 
     jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
 
+    #! This is in risk_management/dyn_opt/unittesting/data/multipliers.parquet
+    #! please copy this file to wherever we would like to store it
     multipliers = pd.read_parquet("multipliers.parquet")
 
     # 3. Dynamic Optimization
@@ -140,6 +143,17 @@ def main():
         SETTINGS.maximum_jump_risk,
         SETTINGS.cost_penalty_scalar,
     )
+
+    # 4. Place Orders
+    
+    #! This is in ib_gateway/ib_utils/unittesting/instruments.csv
+    #! please copy this file to wherever we would like to store it
+    instruments_df = pd.read_csv("instruments.csv")
+
+    # Assumes ideal_positions is a dataframe, converts last row to dict
+    positions_dict = ideal_positions.iloc[:-1].to_dict()
+
+    update_portfolio(positions, instruments_df)
 
 
 if __name__ == "__main__":
