@@ -21,10 +21,15 @@ import numpy as np
 import pandas as pd
 import requests
 
-from data_engine.pipeline import Pipeline
-from risk_management.dyn_opt.dyn_opt import aggregator
-from risk_management.risk_measures.risk_functions import get_jump_covariances
-from risk_management.risk_measures.risk_measures import RiskMeasures
+from algo_trade.data_engine.pipeline import Pipeline
+from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
+from algo_trade.risk_management.risk_measures.risk_functions import get_jump_covariances
+from algo_trade.risk_management.risk_measures.risk_measures import RiskMeasures
+
+# from data_engine.pipeline import Pipeline
+# from risk_management.dyn_opt.dyn_opt import aggregator
+# from risk_management.risk_measures.risk_functions import get_jump_covariances
+# from risk_management.risk_measures.risk_measures import RiskMeasures
 
 # Add the ib_utils directory to the Python path
 sys.path.append(
@@ -37,7 +42,8 @@ sys.path.append(
 )
 
 
-from ib_gateway.ib_utils.update_portfolio import update_portfolio
+from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
+# from ib_gateway.ib_utils.update_portfolio import update_portfolio
 
 
 class SETTINGS:
@@ -102,7 +108,7 @@ def main():
     risk_measures.construct()
 
     daily_returns = risk_measures.daily_returns
-    weekly_returns = risk_measures.weekly_returns
+    # weekly_returns = risk_measures.weekly_returns
     garch_variances = risk_measures.garch_variances
     garch_covariances = risk_measures.garch_covariances
 

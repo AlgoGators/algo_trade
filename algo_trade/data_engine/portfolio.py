@@ -6,7 +6,7 @@ from typing import Any, Dict
 import databento as db
 import pandas as pd
 import toml
-from tqdm import tqdm
+import tqdm
 
 from .future import Historical, Live
 

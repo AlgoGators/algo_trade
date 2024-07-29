@@ -26,6 +26,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 algo-trade = "algo_trade.main:main"
+# Path Agnostic
 
 [tool.black]
 line-length = 88
