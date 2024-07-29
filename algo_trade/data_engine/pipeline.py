@@ -33,7 +33,7 @@ class Pipeline:
         self.t.load()
         return
 
-    def signals(self):
+    def signals(self) -> pd.DataFrame:
         return self.t.signals()
     
     def get_trend_tables(self) -> dict[str, pd.DataFrame]:

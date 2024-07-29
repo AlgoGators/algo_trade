@@ -13,7 +13,7 @@ logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s [%(levelname)s] %(message)s")
 
-def update_portfolio(data_positions : dict[str, float], instruments_df : pd.DataFrame) -> None:
+def update_portfolio(data_positions : dict[str, float], instruments_df : pd.DataFrame, orderType : AdaptiveOrderPriority, min_DTE) -> None:
     IBKR_positions = DataInterface(instruments_df, data_positions=data_positions).IBKR_positions
 
     api_handler = APIHandler(
@@ -29,12 +29,12 @@ def update_portfolio(data_positions : dict[str, float], instruments_df : pd.Data
     held_positions = api_handler.get_current_positions()
 
     portfolio = Portfolio(api_handler)
-    desired_instruments = portfolio.get_desired_positions(IBKR_positions, 5)
+    desired_instruments = portfolio.get_desired_positions(IBKR_positions, min_DTE)
 
     trades = portfolio.get_required_trades(held_positions, desired_instruments)
 
     api_handler.place_orders(
-        trades, TradingAlgorithm(AdaptiveOrderPriority.NORMAL).adaptive_market_order)
+        trades, TradingAlgorithm(orderType).adaptive_market_order)
 
     api_handler.disconnect()
 

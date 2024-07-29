@@ -299,7 +299,7 @@ class Transformation:
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] / stdDev.daily_risk_price_terms()
+            trend[f"{t1}-{t2}"] /= stdDev.daily_risk_price_terms()
 
         # Scale the crossovers by the absolute mean of all previous crossovers
         # scalar_dict = {64: 1.91, 32: 2.79, 16: 4.1, 8: 5.95, 4: 8.53, 2: 12.1}
@@ -335,7 +335,7 @@ class Transformation:
         # CLip the final forecast to -20, 20
         trend["Forecast"] = trend["Forecast"].clip(-20, 20)
 
-        return trend
+        return trend["Forecast"]
 
     def carry(self):
         """
@@ -463,22 +463,14 @@ class Transforms:
 
         # Store the combined trend and carry signals
 
-    def signals(self):
-        trend_signals: dict[str, pd.DataFrame] = {}
-        carry_signals: dict[str, pd.DataFrame] = {}
-        {trend_signals[t.get_symbol()]: t.trend() for t in self.transformations}
-        {carry_signals[t.get_symbol()]: t.carry() for t in self.transformations}
+    def signals(self) -> pd.DataFrame:
+        trend_signals: dict[str, pd.DataFrame] = {t.get_symbol(): t.trend() for t in self.transformations}
+        carry_signals: dict[str, pd.DataFrame] = {t.get_symbol(): t.carry() for t in self.transformations}
         # Combine the trend and carry signals but of a 60% weight to the trend signals and 40% weight to the carry signals
-        combined_signals: dict[str, pd.DataFrame] = {}
-        for symbol in self.symbols:
-            combined_signals[symbol] = (
-                trend_signals[symbol] * 0.6 + carry_signals[symbol] * 0.4
-            )
+        combined_signals: dict[str, pd.Series] = {t.get_symbol(): trend_signals[t.get_symbol()] * 0.6 + carry_signals[t.get_symbol()] * 0.4 for t in self.transformations}
 
         # Turn the combined signals into a json
-        for symbol in self.symbols:
-            combined_signals[symbol] = combined_signals[symbol].to_json()
-
+        combined_dataframe: pd.DataFrame = pd.DataFrame(combined_signals)
         return combined_signals
 
     def get_trend_tables(self) -> dict[str, pd.DataFrame]:

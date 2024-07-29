@@ -25,7 +25,8 @@ from algo_trade.data_engine.pipeline import Pipeline
 from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
 from algo_trade.risk_management.risk_measures.risk_functions import get_jump_covariances
 from algo_trade.risk_management.risk_measures.risk_measures import RiskMeasures
-from ib_gateway.ib_utils.update_portfolio import update_portfolio
+from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
+from algo_trade.ib_gateway.ib_utils.src._enums import AdaptiveOrderPriority
 
 # from data_engine.pipeline import Pipeline
 # from risk_management.dyn_opt.dyn_opt import aggregator
@@ -43,7 +44,7 @@ sys.path.append(
 )
 
 
-from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
+# from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
 # from ib_gateway.ib_utils.update_portfolio import update_portfolio
 
 
@@ -69,6 +70,9 @@ class SETTINGS:
     maximum_jump_risk = 0.75
     cost_penalty_scalar = 10
 
+    ORDER_PRIORITY = AdaptiveOrderPriority.NORMAL
+    MIN_DTE = 5
+
 
 def main():
     """ "
@@ -92,6 +96,7 @@ def main():
     # pipeline.rebuild()
     pipeline.transform()
     # pipeline.load()
+    ideal_positions: pd.DataFrame = pipeline.signals()
 
     # Get the data
     trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
@@ -109,18 +114,15 @@ def main():
     risk_measures.construct()
 
     daily_returns = risk_measures.daily_returns
-    # weekly_returns = risk_measures.weekly_returns
-    garch_variances = risk_measures.garch_variances
-    garch_covariances = risk_measures.garch_covariances
+    garch_variances = risk_measures.GARCH_variances
+    garch_covariances = risk_measures.GARCH_covariances
 
     jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
 
-    #! This is in risk_management/dyn_opt/unittesting/data/multipliers.parquet
-    #! please copy this file to wherever we would like to store it
-    multipliers = pd.read_parquet("multipliers.parquet")
+    multipliers = pd.read_csv("data/multipliers.csv")
 
     # 3. Dynamic Optimization
-    positions = aggregator(
+    positions : pd.DataFrame = aggregator(
         SETTINGS.capital,
         SETTINGS.fixed_cost_per_contract,
         SETTINGS.tau,
@@ -145,15 +147,12 @@ def main():
     )
 
     # 4. Place Orders
-    
-    #! This is in ib_gateway/ib_utils/unittesting/instruments.csv
-    #! please copy this file to wherever we would like to store it
-    instruments_df = pd.read_csv("instruments.csv")
+    instruments_df = pd.read_csv("data/instruments.csv")
 
     # Assumes ideal_positions is a dataframe, converts last row to dict
-    positions_dict = ideal_positions.iloc[:-1].to_dict()
+    positions_dict = positions.iloc[:-1].to_dict()
 
-    update_portfolio(positions, instruments_df)
+    update_portfolio(positions, instruments_df, SETTINGS.ORDER_PRIORITY, SETTINGS.MIN_DTE)
 
 
 if __name__ == "__main__":
