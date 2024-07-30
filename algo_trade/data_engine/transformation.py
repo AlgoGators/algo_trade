@@ -31,6 +31,9 @@ class Transformation:
         # Perform backadjustment
         self.backadjust()
 
+        # Find volatility
+        self.stdDev: standardDeviation = self.get_risk()
+
     # Getters
     def get_symbol(self) -> str:
         return self.symbol
@@ -46,6 +49,43 @@ class Transformation:
 
     def get_back(self) -> pd.DataFrame:
         return self.back
+
+    def get_risk(self) -> standardDeviation:
+        """
+        The get_risk method is used to find the standard deviation of the backadjusted data.
+
+        Args:
+        - None
+
+        Returns:
+        - The standard deviation of the backadjusted data 
+        """
+        data = self.format_trend()
+        return standardDeviation(adjusted_price=data["Close"], current_price=data["Close Unadjusted"])
+
+    def get_current_price(self) -> pd.Series:
+        """
+        The get_current_price method is used to find the current price of the data.
+
+        Args:
+        - None
+
+        Returns:
+        - pd.Series: The current price of the data
+        """
+        return self.format_trend()["Close Unadjusted"]
+
+    def get_open_interest(self) -> pd.Series:
+        """
+        The get_open_interest method is used to find the open interest of the data.
+
+        Args:
+        - None
+
+        Returns:
+        - pd.Series: The open interest of the data
+        """
+        return self.format_trend()["Volume"]
 
     def open(self):
         try:
@@ -441,6 +481,37 @@ class Transforms:
         for t in self.transformations:
             merged[t.get_symbol()] = t.carry()
         return merged
+
+    def get_risk(self) -> dict[str, standardDeviation]:
+        """
+        The get_risk method within the Transforms class returns the standard deviation of the backadjusted data for all the symbols.
+        """
+        return {t.get_symbol(): t.get_risk() for t in self.transformations}
+
+    def get_current_price(self) -> pd.DataFrame:
+        """
+        The get_current_price
+
+        Args:
+        - None
+
+        Returns:
+        - pd.DataFrame: The current price of the data for each of the symbols
+        """
+        return {t.get_symbol(): t.get_current_price() for t in self.transformations}
+    
+    def get_open_interest(self) -> pd.DataFrame:
+        """
+        The get_open_interest method returns the open interest of the instruments in the portfolio
+
+        Args:
+        - None
+
+        Returns:
+        - A dictionary of the open interest of the instruments in the portfolio
+        """
+        return {t.get_symbol(): t.get_open_interest() for t in self.transformations}
+
 
     def load(self):
         # @NOTE: Using the Trend and Carry classes within the base.py file, we can store the data in the postgres database

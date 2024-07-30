@@ -1,11 +1,15 @@
 # Pipeline: The pipeline kicks off the updating and downloading of the futures data, the transformation of the data, and storage of the data
 
 import os
+from typing import Dict
 
 import pandas as pd
 
 from .portfolio import HistoricalPortfolio, LivePortfolio
 from .transformation import Transforms
+
+from algo_trade.data_engine.std_daily_price import standardDeviation
+from algo_trade.risk_management.risk_measures.risk_measures import RiskMeasures
 
 base_dir = os.path.dirname(__file__)
 contracts_path = os.path.join(base_dir, "data", "processed", "contracts.csv")
@@ -33,12 +37,65 @@ class Pipeline:
         self.t.load()
         return
 
-    def signals(self) -> pd.DataFrame:
-        return self.t.signals()
-    
+    def positions(self, capital: float, tau: float, multipliers: pd.DataFrame, covariance: pd.DataFrame) -> pd.DataFrame:
+        """
+        Positions: This functions calculates the position sizes for each of the instruments in the portfolio.
+
+        Formula(s):
+        - position = Capped Combined Signal * Capital * IDM * Weight * tau / (Multiplier * Price * FX * σ %)
+        - IDM(Instrument Diversification Multiplier) = 1 / sqrt(w.rho.w.T)
+        - rho = Covariance matrix of the instruments in the portfolio ~ NxN
+        - w = A vector of the weights of the instruments in the portfolio summing to 1
+        - tau = The risk tolerance parameter
+
+        Args:
+        - capital: The amount of capital to be allocated to the portfolio 
+        - tau: The risk aversion parameter
+        - multipliers: The multipliers for each of the instruments in the portfolio
+
+        Returns:
+        - A dataframe of the positions for each of the instruments in the portfolio
+        """
+        w: int = 1 / len(self.symbols)
+        signals: pd.DataFrame = self.t.signals()
+        risk: Dict[str, standardDeviation] = self.t.get_risk()
+        price: pd.DataFrame = self.t.get_current_price()
+
+        positions = {}
+        for symbol in self.symbols:
+            positions[symbol] = (
+                signals[symbol] * capital * w * tau / (multipliers[symbol] * risk[symbol] * price[symbol])
+                )
+
+        return pd.DataFrame(positions)
+
     def get_trend_tables(self) -> dict[str, pd.DataFrame]:
         return self.t.get_trend_tables()
 
+
+    def get_prices(self) -> pd.DataFrame:
+        """
+        The get_prices function returns the prices of the instruments in the portfolio unadjusted for rollovers
+
+        Args:
+        - None
+
+        Returns:
+        - A dataframe of the prices of the instruments in the portfolio
+        """
+        return self.t.get_prices()
+
+    def get_open_interest(self) -> pd.DataFrame:
+        """
+        The get_open_interest function returns the open interest of the instruments in the portfolio
+
+        Args:
+        - None
+
+        Returns:
+        - A dataframe of the open interest of the instruments in the portfolio
+        """
+        return self.t.get_open_interest()
     """
     We need a JSON Doc of a critical pieces of data.
     RISK MEASURES:

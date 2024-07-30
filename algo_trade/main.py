@@ -96,7 +96,6 @@ def main():
     # pipeline.rebuild()
     pipeline.transform()
     # pipeline.load()
-    ideal_positions: pd.DataFrame = pipeline.signals()
 
     # Get the data
     trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
@@ -120,6 +119,10 @@ def main():
     jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
 
     multipliers = pd.read_csv("data/multipliers.csv")
+
+    ideal_positions: pd.DataFrame = pipeline.positions(capital=500_000, tau=0.20, multipliers=multipliers, covariance=garch_covariances)
+    unadj_prices = pipeline.get_prices()
+    open_interest = pipeline.get_open_interest()
 
     # 3. Dynamic Optimization
     positions : pd.DataFrame = aggregator(
