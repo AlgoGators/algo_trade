@@ -1,7 +1,6 @@
 Asset,Description,Exchange,Data Symbol,Data Set
-CAC,French equity index CAC40,CME,6S,GLBX.MDP3
 CAD,CADUSD currency,CME,6C,GLBX.MDP3
-CHF,CHFUSD currency,CME,MSF,GLBX.MDP3
+CHF,CHFUSD currency,CME,6S,GLBX.MDP3
 EUR,EURUSD currency,CME,6E,GLBX.MDP3
 GBP,GBPUSD currency,CME,6B,GLBX.MDP3
 FEEDCOW,Feeder cattle,CME,GF,GLBX.MDP3
