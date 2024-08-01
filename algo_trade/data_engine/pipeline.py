@@ -60,14 +60,10 @@ class Pipeline:
         signals: pd.DataFrame = self.t.signals()
         risk: Dict[str, standardDeviation] = self.t.get_risk()
         price: pd.DataFrame = self.t.get_current_price()
+        positions = signals * capital * w * tau / risk / price
+        positions = positions.apply(lambda col: col / multipliers.loc['multiplier', col.name])
 
-        positions = {}
-        for symbol in self.symbols:
-            positions[symbol] = (
-                signals[symbol] * capital * w * tau / (multipliers[symbol].iloc[0] * risk[symbol] * price[symbol])
-                )
-
-        return pd.DataFrame(positions)
+        return positions
 
     def get_trend_tables(self) -> dict[str, pd.DataFrame]:
         return self.t.get_trend_tables()

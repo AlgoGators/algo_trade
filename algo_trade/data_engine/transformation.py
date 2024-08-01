@@ -486,7 +486,16 @@ class Transforms:
         """
         The get_risk method within the Transforms class returns the standard deviation of the backadjusted data for all the symbols.
         """
-        return {t.get_symbol(): t.get_risk() for t in self.transformations}
+        risk_dct : dict[str, standardDeviation] = {t.get_symbol(): t.get_risk() for t in self.transformations}
+        
+        merged_df : pd.DataFrame = pd.DataFrame()
+        for key, df in risk_dct.items():
+            df.name = key
+            if merged_df.empty:
+                merged_df = df
+            else:
+                merged_df = pd.concat([merged_df, df], axis=1, join="outer")
+        return merged_df
 
     def get_current_price(self) -> pd.DataFrame:
         """
@@ -498,7 +507,16 @@ class Transforms:
         Returns:
         - pd.DataFrame: The current price of the data for each of the symbols
         """
-        return {t.get_symbol(): t.get_current_price() for t in self.transformations}
+        price_dct = {t.get_symbol(): t.get_current_price() for t in self.transformations}
+
+        merged_df : pd.DataFrame = pd.DataFrame()
+        for key, df in price_dct.items():
+            df.name = key
+            if merged_df.empty:
+                merged_df = df
+            else:
+                merged_df = pd.concat([merged_df, df], axis=1, join="outer")
+        return merged_df 
     
     def get_open_interest(self) -> pd.DataFrame:
         """
@@ -542,7 +560,7 @@ class Transforms:
 
         # Turn the combined signals into a json
         combined_dataframe: pd.DataFrame = pd.DataFrame(combined_signals)
-        return combined_signals
+        return combined_dataframe
 
     def get_trend_tables(self) -> dict[str, pd.DataFrame]:
         trend_tables = {}
