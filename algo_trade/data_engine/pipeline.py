@@ -64,7 +64,7 @@ class Pipeline:
         positions = {}
         for symbol in self.symbols:
             positions[symbol] = (
-                signals[symbol] * capital * w * tau / (multipliers[symbol] * risk[symbol] * price[symbol])
+                signals[symbol] * capital * w * tau / (multipliers[symbol].iloc[0] * risk[symbol] * price[symbol])
                 )
 
         return pd.DataFrame(positions)
@@ -83,7 +83,7 @@ class Pipeline:
         Returns:
         - A dataframe of the prices of the instruments in the portfolio
         """
-        return self.t.get_prices()
+        return self.t.get_current_price()
 
     def get_open_interest(self) -> pd.DataFrame:
         """
