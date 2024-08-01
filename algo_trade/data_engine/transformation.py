@@ -189,11 +189,7 @@ class Transformation:
         # Loop through the dataframe and adjust the prices
         for i in range(1, len(back)):
             # If the instrument_id_data changes
-            if (
-                back["instrument_id_data"].iloc[i]
-                != back["instrument_id_data"].iloc[i - 1]
-            ):
-                # Calculate the adjustment factor
+            if (back["instrument_id_data"].iloc[i] != back["instrument_id_data"].iloc[i - 1]):
                 adj_factor += back["close"].iloc[i - 1] - back["close"].iloc[i]
             # Adjust the prices
             # back["open_adj"].iloc[i] += adj_factor
@@ -530,7 +526,6 @@ class Transforms:
         """
         return {t.get_symbol(): t.get_open_interest() for t in self.transformations}
 
-
     def load(self):
         # @NOTE: Using the Trend and Carry classes within the base.py file, we can store the data in the postgres database
         transforms_bar = tqdm.tqdm(self.transformations, desc="Storing Data")
@@ -553,10 +548,19 @@ class Transforms:
         # Store the combined trend and carry signals
 
     def signals(self) -> pd.DataFrame:
-        trend_signals: dict[str, pd.DataFrame] = {t.get_symbol(): t.trend() for t in self.transformations}
-        carry_signals: dict[str, pd.DataFrame] = {t.get_symbol(): t.carry() for t in self.transformations}
+        trend_signals: dict[str, pd.DataFrame] = {
+            t.get_symbol(): t.trend()
+            for t in self.transformations
+        }
+        carry_signals: dict[str, pd.DataFrame] = {
+            t.get_symbol(): t.carry()
+            for t in self.transformations
+        }
         # Combine the trend and carry signals but of a 60% weight to the trend signals and 40% weight to the carry signals
-        combined_signals: dict[str, pd.Series] = {t.get_symbol(): trend_signals[t.get_symbol()] * 0.6 + carry_signals[t.get_symbol()] * 0.4 for t in self.transformations}
+        combined_signals: dict[str, pd.Series] = {
+            t.get_symbol(): trend_signals[t.get_symbol()]*0.6 + carry_signals[t.get_symbol()]*0.4 
+            for t in self.transformations
+        }
 
         # Turn the combined signals into a json
         combined_dataframe: pd.DataFrame = pd.DataFrame(combined_signals)
