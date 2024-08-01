@@ -1,8 +1,5 @@
 import datetime
 import logging
-import os
-import pickle
-import sys
 from functools import reduce
 
 import numpy as np
@@ -12,18 +9,6 @@ from ..risk_limits import portfolio_risk, position_risk
 from ..risk_measures.risk_functions import \
     daily_variance_to_annualized_volatility
 from ..shared_functions._logging import CsvFormatter
-
-# print(os.getcwd())
-# print(os.listdir('risk_limits'))
-# print(os.listdir('dyn_opt'))
-# import sys
-# print(sys.path)
-# import sys
-# sys.path.append('/app/risk_limits')
-
-
-
-
 
 logging.basicConfig(
     level=logging.INFO,
