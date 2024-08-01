@@ -73,6 +73,16 @@ class SETTINGS:
     ORDER_PRIORITY = AdaptiveOrderPriority.NORMAL
     MIN_DTE = 5
 
+def merge_dfs(d : dict[str, pd.Series]) -> pd.DataFrame:
+    merged_df : pd.DataFrame = pd.DataFrame()
+    for key, df in d.items():
+        df.name = key
+        if merged_df.empty:
+            merged_df = df
+        else:
+            merged_df = pd.concat([merged_df, df], axis=1, join="outer")
+    return merged_df
+
 
 def main():
     """ "
@@ -118,11 +128,18 @@ def main():
 
     jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
 
-    multipliers = pd.read_csv("data/multipliers.csv")
+    instruments_df = pd.read_csv("data/contract.csv")
 
-    ideal_positions: pd.DataFrame = pipeline.positions(capital=500_000, tau=0.20, multipliers=multipliers, covariance=garch_covariances)
+    multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
+
+    ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, covariance=garch_covariances)
     unadj_prices = pipeline.get_prices()
     open_interest = pipeline.get_open_interest()
+
+    unadj_prices = merge_dfs(unadj_prices)
+    open_interest = merge_dfs(open_interest)
+
+    instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
 
     # 3. Dynamic Optimization
     positions : pd.DataFrame = aggregator(
@@ -136,7 +153,7 @@ def main():
         garch_covariances,
         jump_covariances,
         open_interest,
-        SETTINGS.instrument_weight,
+        instrument_weights,
         SETTINGS.IDM,
         SETTINGS.maxmimum_forecast_ratio,
         SETTINGS.max_acceptable_pct_of_open_interest,
@@ -150,12 +167,11 @@ def main():
     )
 
     # 4. Place Orders
-    instruments_df = pd.read_csv("data/instruments.csv")
 
     # Assumes ideal_positions is a dataframe, converts last row to dict
-    positions_dict = positions.iloc[:-1].to_dict()
+    positions_dict = positions.iloc[-1].to_dict()
 
-    update_portfolio(positions, instruments_df, SETTINGS.ORDER_PRIORITY, SETTINGS.MIN_DTE)
+    update_portfolio(positions_dict, instruments_df, SETTINGS.ORDER_PRIORITY, SETTINGS.MIN_DTE)
 
 
 if __name__ == "__main__":
