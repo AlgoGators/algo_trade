@@ -39,3 +39,31 @@ SSH_RESTART=
 SSH_VNC_PORT=
 ```
 4. Run docker-compose up
+
+## Using Poetry
+```
+// Installing dependencies
+>> poetry install
+```
+
+## API Config File:
+Ensure config/config.toml exists with the following values:
+```
+[server]
+ip = ""
+user = ""
+password = ""
+
+[database]
+demo = ""
+db_trend = ""
+db_carry = ""
+db_test = ""
+user = ""
+password = ""
+port = ""
+
+[databento]
+api_historical = ""
+api_live = ""
+```
