@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 logging.root.handlers[0].setFormatter(CsvFormatter())
 
 def get_notional_exposure_per_contract(unadj_prices : pd.DataFrame, multipliers : pd.DataFrame) -> pd.DataFrame:
-    notional_exposure_per_contract = unadj_prices.apply(lambda col: col * multipliers.loc['Multiplier', col.name])
+    notional_exposure_per_contract = unadj_prices.apply(lambda col: col * multipliers.loc['multiplier', col.name])
     return notional_exposure_per_contract.abs()
 
 def get_weight_per_contract(notional_exposure_per_contract : pd.DataFrame, capital : float) -> pd.DataFrame:
