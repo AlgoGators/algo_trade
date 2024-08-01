@@ -28,11 +28,6 @@ from algo_trade.risk_management.risk_measures.risk_measures import RiskMeasures
 from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
 from algo_trade.ib_gateway.ib_utils.src._enums import AdaptiveOrderPriority
 
-# from data_engine.pipeline import Pipeline
-# from risk_management.dyn_opt.dyn_opt import aggregator
-# from risk_management.risk_measures.risk_functions import get_jump_covariances
-# from risk_management.risk_measures.risk_measures import RiskMeasures
-
 # Add the ib_utils directory to the Python path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "ib-gateway/ib_utils"))
@@ -42,11 +37,6 @@ sys.path.append(
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "ib-gateway/ib_utils/src"))
 )
-
-
-# from algo_trade.ib_gateway.ib_utils.update_portfolio import update_portfolio
-# from ib_gateway.ib_utils.update_portfolio import update_portfolio
-
 
 class SETTINGS:
     weights = (0.01, 0.01, 0.98)
@@ -85,7 +75,7 @@ def merge_dfs(d : dict[str, pd.Series]) -> pd.DataFrame:
 
 
 def main():
-    """ "
+    """
     Order of Operations:
     1. Data Engine:
         - Rebuilding our data store using the pipeline
