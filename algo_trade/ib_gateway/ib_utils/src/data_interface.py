@@ -66,7 +66,7 @@ class DataInterface:
                 self.instruments_df['dataSymbol'] == symbol, 'ibSymbol'].values[0]
             contract.exchange = self.instruments_df.loc[
                 self.instruments_df['dataSymbol'] == symbol, 'exchange'].values[0]
-            contract.multiplier = int(self.instruments_df.loc[
+            contract.multiplier = Decimal(self.instruments_df.loc[
                 self.instruments_df['dataSymbol'] == symbol, 'multiplier'].values[0])
             contract.currency = self.instruments_df.loc[
                 self.instruments_df['dataSymbol'] == symbol, 'currency'].values[0]
