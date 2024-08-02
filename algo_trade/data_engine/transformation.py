@@ -544,13 +544,13 @@ class Transforms:
 
         # Store the combined trend and carry signals
 
-    def signals(self) -> pd.DataFrame:
+    def signals(self, variances : pd.DataFrame) -> pd.DataFrame:
         trend_signals: dict[str, pd.DataFrame] = {
-            t.get_symbol(): t.trend()
+            t.get_symbol(): t.trend(variances[t.get_symbol()])
             for t in self.transformations
         }
         carry_signals: dict[str, pd.DataFrame] = {
-            t.get_symbol(): t.carry()
+            t.get_symbol(): t.carry(variances[t.get_symbol()])
             for t in self.transformations
         }
         # Combine the trend and carry signals but of a 60% weight to the trend signals and 40% weight to the carry signals
