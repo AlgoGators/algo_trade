@@ -15,11 +15,11 @@ class DataInterface:
 
         self.instruments_df = instruments_df
 
-        if IBKR_positions is not None and data_positions is not None:
+        if IBKR_positions and data_positions:
             raise ValueError("Must provide either IBKR_positions or data_positions, not both")
-        elif IBKR_positions is not None:
+        elif IBKR_positions:
             self._IBKR_positions = IBKR_positions
-        elif data_positions is not None:
+        elif data_positions:
             self._data_positions = data_positions
 
         self._data_positions = {} if data_positions is None else data_positions
@@ -58,6 +58,9 @@ class DataInterface:
         if self.data_positions is None or self.data_positions == {}:
             return
         for symbol, quantity in self.data_positions.items():
+            if symbol not in self.instruments_df['dataSymbol'].values:
+                raise ValueError(f"Symbol {symbol} not found in instruments_df")
+
             contract = Contract()
             contract.symbol = self.instruments_df.loc[
                 self.instruments_df['dataSymbol'] == symbol, 'ibSymbol'].values[0]
