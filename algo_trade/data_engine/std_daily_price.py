@@ -100,13 +100,9 @@ def calculate_variable_standard_deviation_for_risk_targeting(
     ## Can do the whole series or recent history
     daily_exp_std_dev = daily_returns.ewm(span=32).std()
 
-    if annualise_stdev:
-        annualisation_factor = BUSINESS_DAYS_IN_YEAR**0.5
-    else:
-        ## leave at daily
-        annualisation_factor = 1
+    annualization_factor = BUSINESS_DAYS_IN_YEAR**0.5 if annualise_stdev else 1
 
-    annualised_std_dev = daily_exp_std_dev * annualisation_factor
+    annualised_std_dev = daily_exp_std_dev * annualization_factor
 
     ## Weight with ten year vol
     ten_year_vol = annualised_std_dev.rolling(
