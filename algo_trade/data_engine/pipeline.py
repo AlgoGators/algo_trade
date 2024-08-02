@@ -59,7 +59,7 @@ class Pipeline:
         w: int = 1 / len(self.symbols)
         signals: pd.DataFrame = self.t.signals(variances)
         price: pd.DataFrame = self.t.get_current_price()
-        positions : pd.DataFrame = signals * capital * w * tau / variances / price
+        positions : pd.DataFrame = signals * capital * w * tau / (variances ** 0.5 * 16) / price
         positions = positions.apply(lambda col: col / multipliers.loc['multiplier', col.name])
 
         return positions
