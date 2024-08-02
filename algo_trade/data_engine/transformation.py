@@ -385,19 +385,16 @@ class Transformation:
         data = self.format_carry()
         raw_carry = data["Front Close"] - data["Back Close"]
         # The raw carry is found by finding the difference between the price of the currently held contract and the price of the next contract
-        annualized_carry = (
-            raw_carry
-            / (
-                (data["Back Expiration"] - data["Front Expiration"]).dt.days / 365
-            ).mean()
-        )
+        annualized_carry = (raw_carry 
+            / ((data["Back Expiration"] - data["Front Expiration"]).dt.days / 365).mean())
+        
         # The annualized carry is found by dividing the raw carry by the number of days between the expiration of the front and back month contracts
         raw = self.format_trend()
         # ! Reaccess the functionality of the standard deviation class
         stdDev = standardDeviation(
-            adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"]
-        )
-        risk_adjusted_carry = annualized_carry / (stdDev.daily_risk_price_terms())
+            adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
+
+        risk_adjusted_carry = annualized_carry / (stdDev.annual_risk_price_terms())
 
         spans = [5, 20, 60, 120]
         smoothed_carries = []
