@@ -64,8 +64,8 @@ class Pipeline:
 
         return positions
 
-    def get_trend_tables(self) -> dict[str, pd.DataFrame]:
-        return self.t.get_trend_tables()
+    def get_price_tables(self) -> dict[str, pd.DataFrame]:
+        return self.t.get_price_tables()
 
 
     def get_prices(self) -> pd.DataFrame:
