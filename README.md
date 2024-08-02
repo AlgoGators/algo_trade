@@ -40,10 +40,45 @@ SSH_VNC_PORT=
 ```
 4. Run docker-compose up
 
-## Using Poetry
+## Poetry
+### Installing Poetry
+The easiest way to install Poetry is through Pipx, which is likely not already installed.
+
+#### Windows:
+```
+// Installing pip x
+>> py -m pip install --user pipx
+
+// It will likely raise the following warning:
+WARNING: The script pipx.exe is installed in `<USER folder>\AppData\Roaming\Python\Python3x\Scripts` which is not on PATH
+
+// Run the following:
+>> cd <USER folder>\AppData\Roaming\Python\Python3x\Scripts
+>> .\pipx.exe ensurepath
+
+// Refresh terminal
+
+// Installing poetry
+>> pipx install poetry
+```
+
+#### Linux
+```
+// Ask Cole
+```
+
+#### macOS
+```
+```
+
+---
+### Using Poetry
 ```
 // Installing dependencies
 >> poetry install
+
+// Running main.py (from root directory)
+>> poetry run python algo_trade/main.py
 ```
 
 ## API Config File:
