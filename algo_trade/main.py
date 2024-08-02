@@ -134,7 +134,7 @@ def main():
 
         multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
 
-        ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, covariance=garch_covariances)
+        ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, variances=garch_variances)
         unadj_prices = pipeline.get_prices()
         open_interest = pipeline.get_open_interest()
 

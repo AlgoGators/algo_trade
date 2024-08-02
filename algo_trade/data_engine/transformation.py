@@ -303,7 +303,7 @@ class Transformation:
         self.format_carry().to_parquet(f"carry/{self.symbol}_carry.parquet")
         pass
 
-    def trend(self) -> pd.DataFrame:
+    def trend(self, variance) -> pd.DataFrame:
         """
         The trend method is used to find the trend signal of the backadjusted data.
         The follwing steps are performed:
@@ -322,7 +322,7 @@ class Transformation:
         )  # Create a new dataframe to store the trend data
 
         # Passinging Close and Unadjusted Close to the standard deviation class
-        stdDev = standardDeviation(data["Close"], data["Close Unadjusted"])
+        # stdDev = standardDeviation(data["Close"], data["Close Unadjusted"])
 
         trends = [2, 4, 8, 16, 32, 64, 128, 256]
         crossovers = [(2, 8), (4, 16), (8, 32), (16, 64), (32, 128), (64, 256)]
@@ -335,7 +335,7 @@ class Transformation:
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= stdDev.annual_risk_price_terms()
+            trend[f"{t1}-{t2}"] /= ((variance ** 0.5) * data["Close Unadjusted"])
 
         # Scale the crossovers by the absolute mean of all previous crossovers
         # scalar_dict = {64: 1.91, 32: 2.79, 16: 4.1, 8: 5.95, 4: 8.53, 2: 12.1}
@@ -373,7 +373,7 @@ class Transformation:
 
         return trend["Forecast"]
 
-    def carry(self):
+    def carry(self, variance):
         """
         The carry method is used to find the carry signal of the front and back month data.
         The following steps are performed:
@@ -394,7 +394,7 @@ class Transformation:
         stdDev = standardDeviation(
             adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
 
-        risk_adjusted_carry = annualized_carry / (stdDev.annual_risk_price_terms())
+        risk_adjusted_carry = annualized_carry / ((variance ** 0.5) * data["Close Unadjusted"])
 
         spans = [5, 20, 60, 120]
         smoothed_carries = []
