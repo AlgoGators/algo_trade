@@ -60,7 +60,7 @@ class SETTINGS:
     maximum_portfolio_risk = 0.30
     maximum_jump_risk = 0.75
     cost_penalty_scalar = 10
-    DOCKER_PATH = "ibc/docker-compose.yml"
+    DOCKER_PATH = "algo_trade/ibc/docker-compose.yml"
 
     ORDER_PRIORITY = AdaptiveOrderPriority.NORMAL
     MIN_DTE = 5
@@ -75,6 +75,11 @@ def merge_dfs(d : dict[str, pd.Series]) -> pd.DataFrame:
             merged_df = pd.concat([merged_df, df], axis=1, join="outer")
     return merged_df
 
+class Docker:
+    def up():
+        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "up" "-d"], shell=True)
+    def down():
+        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "down"], shell=True)
 
 def main():
     """
@@ -93,10 +98,8 @@ def main():
     4. Dynamic Optimization:
         - Position beep bop boop
     5. Place orders
+    6. Close docker
     """
-
-    # 1. Start docker container
-    subprocess.run(f"docker-compose up -f {SETTINGS.DOCKER_PATH}", shell=True)
 
     # 2. Data Engine
     pipeline = Pipeline()
@@ -172,4 +175,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # 1. Start Docker
+        Docker.up()
+
+        # Run main
+        main()
+    finally:
+        # 6. Close Docker
+        Docker.down()
