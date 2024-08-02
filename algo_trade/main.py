@@ -110,11 +110,11 @@ def main():
         # pipeline.load()
 
         # Get the data
-        trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
+        price_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
 
         # 3. Risk Measures Calculation
         risk_measures = RiskMeasures(
-            trend_tables,
+            price_tables,
             SETTINGS.weights,
             SETTINGS.warmup,
             SETTINGS.unadj_column,
