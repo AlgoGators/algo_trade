@@ -77,7 +77,7 @@ def merge_dfs(d : dict[str, pd.Series]) -> pd.DataFrame:
 
 class Docker:
     def up():
-        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "up" "-d"], shell=True)
+        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "up", "-d"], shell=True)
     def down():
         subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "down"], check=True)
 
