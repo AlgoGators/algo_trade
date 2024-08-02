@@ -14,8 +14,6 @@ from ..src._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
 from ..src._type_hints import ContractDetails
 from ..src._enums import AccountSummaryTag
 
-threading.TIMEOUT_MAX = TIMEOUT
-
 class IBAPI(EClient, EWrapper):
     def __init__(self, condition : threading.Condition) -> None:
         EClient.__init__(self, self)
@@ -81,7 +79,7 @@ class APIHandler:
     def __await_connection(self) -> None:
         with self.app.condition:
             logging.warning("Waiting for connection to TWS")
-            timed_out = not self.app.condition.wait()
+            timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out or not self.app.isConnected():
             raise ConnectionError("Failed to connect to TWS")
         logging.warning("Connected to TWS")
@@ -99,7 +97,7 @@ class APIHandler:
         with self.app.condition:
             self.app.account_summary = {} # Clear account summary dictionary
             self.app.reqAccountSummary(0, "All", tag)
-            timed_out = not self.app.condition.wait()
+            timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out:
             raise TimeoutError(f"Failed to retrieve account summary for {tag}")
         return self.app.account_summary
@@ -124,7 +122,7 @@ class APIHandler:
         with self.app.condition:
             self.app.positions = {} # Clear positions dictionary
             self.app.reqPositions()
-            timed_out = not self.app.condition.wait()
+            timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out:
             raise TimeoutError("Failed to retrieve current positions")
 
@@ -143,7 +141,7 @@ class APIHandler:
         with self.app.condition:
             self.app.contract_details = {} # Clear contracts dictionary
             self.app.reqContractDetails(0, contract)
-            timed_out = not self.app.condition.wait()
+            timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out:
             raise TimeoutError("Failed to retrieve contract details")
         contracts : dict[str, Contract] = {conId : contractDetails.contract for conId, contractDetails in self.app.contract_details.items()}
@@ -156,7 +154,7 @@ class APIHandler:
             with self.app.condition:
                 self.app.open_orders = {}
                 self.app.reqOpenOrders()
-                timed_out = not self.app.condition.wait()
+                timed_out = not self.app.condition.wait(TIMEOUT)
             if timed_out:
                 raise TimeoutError("Failed to retrieve open orders")
             if not self.app.open_orders:
