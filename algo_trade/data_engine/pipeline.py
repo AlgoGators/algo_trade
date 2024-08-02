@@ -37,7 +37,7 @@ class Pipeline:
         self.t.load()
         return
 
-    def positions(self, capital: float, tau: float, multipliers: pd.DataFrame, variances : pd.DataFrame) -> pd.DataFrame:
+    def positions(self, capital: float, tau: float, multipliers: pd.DataFrame, IDM : int, variances : pd.DataFrame) -> pd.DataFrame:
         """
         Positions: This functions calculates the position sizes for each of the instruments in the portfolio.
 
@@ -59,7 +59,7 @@ class Pipeline:
         w: int = 1 / len(self.symbols)
         signals: pd.DataFrame = self.t.signals(variances)
         price: pd.DataFrame = self.t.get_current_price()
-        positions : pd.DataFrame = signals * capital * w * tau / (variances ** 0.5 * 16) / price
+        positions : pd.DataFrame = signals * capital * IDM * w * tau / (variances ** 0.5 * 16) / price / 10
         positions = positions.apply(lambda col: col / multipliers.loc['multiplier', col.name])
 
         return positions

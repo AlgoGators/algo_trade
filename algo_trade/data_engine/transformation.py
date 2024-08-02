@@ -335,13 +335,13 @@ class Transformation:
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= ((variance ** 0.5) * data["Close Unadjusted"] * 16)
+            trend[f"{t1}-{t2}"] /= ((variance ** 0.5) * data["Close Unadjusted"])
 
         # Scale the crossovers by the absolute mean of all previous crossovers
-        # scalar_dict = {64: 1.91, 32: 2.79, 16: 4.1, 8: 5.95, 4: 8.53, 2: 12.1}
-        scalar_dict = {}
-        for t1, t2 in crossovers:
-            scalar_dict[t1] = 10 / trend[f"{t1}-{t2}"].abs().mean()
+        # scalar_dict = {}
+        # for t1, t2 in crossovers:
+        #     scalar_dict[t1] = 10 / trend[f"{t1}-{t2}"].abs().mean()
+        scalar_dict = {64: 1.91, 32: 2.79, 16: 4.1, 8: 5.95, 4: 8.53, 2: 12.1}
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"] * scalar_dict[t1]
 
@@ -367,6 +367,9 @@ class Transformation:
         fdm = 1 / np.sqrt(w @ corr @ w.T)
         for t1, t2 in crossovers:
             trend["Forecast"] += trend[f"{t1}-{t2}"] * weights[t1]
+
+        #! FDM is currently hardcoded
+        fdm = 1.35
         trend["Forecast"] = trend["Forecast"] * fdm
         # CLip the final forecast to -20, 20
         trend["Forecast"] = trend["Forecast"].clip(-20, 20)
@@ -385,23 +388,31 @@ class Transformation:
         data = self.format_carry()
         raw_carry = data["Front Close"] - data["Back Close"]
         # The raw carry is found by finding the difference between the price of the currently held contract and the price of the next contract
-        annualized_carry = (raw_carry 
+        annualized_carry = (raw_carry
             / ((data["Back Expiration"] - data["Front Expiration"]).dt.days / 365).mean())
         
         # The annualized carry is found by dividing the raw carry by the number of days between the expiration of the front and back month contracts
         raw = self.format_trend()
         # ! Reaccess the functionality of the standard deviation class
-        stdDev = standardDeviation(
-            adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
+        # stdDev = standardDeviation(
+        #     adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
 
         risk_adjusted_carry = annualized_carry / ((variance ** 0.5) * data["Front Close"] * 16)
 
         spans = [5, 20, 60, 120]
-        smoothed_carries = []
+        smoothed_carries : list = []
         for span in spans:
             smoothed_carries.append(
                 risk_adjusted_carry.ewm(span=span, min_periods=1).mean()
             )
+        # scalar_dict = {}
+        # for n, span in enumerate(spans):
+        #     scalar_dict[span] = 10 / smoothed_carries[n].abs().mean()
+
+        # TODO: Impl a true scalar_dict
+        for n, span in enumerate(spans):
+            smoothed_carries[n] = smoothed_carries[n] * 30
+
         smoothed_carries = pd.concat(smoothed_carries, axis=1)
         # Combine the smoothed carries into a single series
         smoothed_carries.columns = spans
@@ -412,6 +423,9 @@ class Transformation:
         weights = [1 / n] * n
         weights = np.array(weights)
         fdm = 1 / (weights @ corr.to_numpy() @ weights)
+
+        #! FDM is currently hardcoded
+        fdm = 1.35
         combined = smoothed_carries.mean(axis=1) * fdm
         # Cap carry from -20 to 20
         combined = combined.clip(-20, 20)
