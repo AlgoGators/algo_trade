@@ -5,8 +5,9 @@ Algo Trade is a Python application...
 ## Running ib-gateway:
 This relies on [gnzsnz](https://github.com/gnzsnz)'s [ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker) repository.
 1. Clone the repository to desired machine.
-2. Create a .env in the root of the reopository.
-3. Inside this file, copy the following, change userName and passWord:
+2. Place contents of the repository into algo_trade/ibc
+3. Create a .env in the root of the repository.
+4. Inside this file, copy the following, change userName and passWord:
 ```
 TWS_USERID=userName
 TWS_PASSWORD=passWord
@@ -79,6 +80,9 @@ WARNING: The script pipx.exe is installed in `<USER folder>\AppData\Roaming\Pyth
 
 // Running main.py (from root directory)
 >> poetry run python algo_trade/main.py
+
+// OR (if the file has been added to pyproject.toml)
+>> poetry run algo-trade
 ```
 
 ## API Config File:

@@ -20,6 +20,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import requests
+import subprocess
 
 from algo_trade.data_engine.pipeline import Pipeline
 from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
@@ -59,6 +60,7 @@ class SETTINGS:
     maximum_portfolio_risk = 0.30
     maximum_jump_risk = 0.75
     cost_penalty_scalar = 10
+    DOCKER_PATH = "ibc/docker-compose.yml"
 
     ORDER_PRIORITY = AdaptiveOrderPriority.NORMAL
     MIN_DTE = 5
@@ -77,21 +79,26 @@ def merge_dfs(d : dict[str, pd.Series]) -> pd.DataFrame:
 def main():
     """
     Order of Operations:
-    1. Data Engine:
+    1. Start the docker container
+
+    2. Data Engine:
         - Rebuilding our data store using the pipeline
         - Transforming the data
         - @TODO: Load to the database
-    2. Risk Measures Calculation:
+    3. Risk Measures Calculation:
         - Calculate our cov and var matrices
             - Returns (weekly and daily)
             - GARCH variances
             - GARCH covariances
-    3. Dynamic Optimization:
+    4. Dynamic Optimization:
         - Position beep bop boop
-    4. We'll get there later! (Place orders)
+    5. Place orders
     """
 
-    # 1. Data Engine
+    # 1. Start docker container
+    subprocess.run(f"docker-compose up -f {SETTINGS.DOCKER_PATH}", shell=True)
+
+    # 2. Data Engine
     pipeline = Pipeline()
     # pipeline.rebuild()
     pipeline.transform()
@@ -100,7 +107,7 @@ def main():
     # Get the data
     trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
 
-    # 2. Risk Measures Calculation
+    # 3. Risk Measures Calculation
     risk_measures = RiskMeasures(
         trend_tables,
         SETTINGS.weights,
@@ -131,7 +138,7 @@ def main():
 
     instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
 
-    # 3. Dynamic Optimization
+    # 4. Dynamic Optimization
     positions : pd.DataFrame = aggregator(
         SETTINGS.capital,
         SETTINGS.fixed_cost_per_contract,
@@ -156,7 +163,7 @@ def main():
         SETTINGS.cost_penalty_scalar,
     )
 
-    # 4. Place Orders
+    # 5. Place Orders
 
     # Assumes ideal_positions is a dataframe, converts last row to dict
     positions_dict = positions.iloc[-1].to_dict()
