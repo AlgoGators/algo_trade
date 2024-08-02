@@ -394,7 +394,7 @@ class Transformation:
         stdDev = standardDeviation(
             adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
 
-        risk_adjusted_carry = annualized_carry / ((variance ** 0.5) * data["Close Unadjusted"])
+        risk_adjusted_carry = annualized_carry / ((variance ** 0.5) * data["Front Close"])
 
         spans = [5, 20, 60, 120]
         smoothed_carries = []
