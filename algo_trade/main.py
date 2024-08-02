@@ -79,7 +79,7 @@ class Docker:
     def up():
         subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "up" "-d"], shell=True)
     def down():
-        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "down"], shell=True)
+        subprocess.run(["docker-compose", "-f", SETTINGS.DOCKER_PATH, "down"], check=True)
 
 def main():
     """
@@ -100,87 +100,83 @@ def main():
     5. Place orders
     6. Close docker
     """
-
-    # 2. Data Engine
-    pipeline = Pipeline()
-    # pipeline.rebuild()
-    pipeline.transform()
-    # pipeline.load()
-
-    # Get the data
-    trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
-
-    # 3. Risk Measures Calculation
-    risk_measures = RiskMeasures(
-        trend_tables,
-        SETTINGS.weights,
-        SETTINGS.warmup,
-        SETTINGS.unadj_column,
-        SETTINGS.expiration_column,
-        SETTINGS.date_column,
-    )
-
-    risk_measures.construct()
-
-    daily_returns = risk_measures.daily_returns
-    garch_variances = risk_measures.GARCH_variances
-    garch_covariances = risk_measures.GARCH_covariances
-
-    jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
-
-    instruments_df = pd.read_csv("data/contract.csv")
-
-    multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
-
-    ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, covariance=garch_covariances)
-    unadj_prices = pipeline.get_prices()
-    open_interest = pipeline.get_open_interest()
-
-    unadj_prices = merge_dfs(unadj_prices)
-    open_interest = merge_dfs(open_interest)
-
-    instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
-
-    # 4. Dynamic Optimization
-    positions : pd.DataFrame = aggregator(
-        SETTINGS.capital,
-        SETTINGS.fixed_cost_per_contract,
-        SETTINGS.tau,
-        SETTINGS.asymmetric_risk_buffer,
-        unadj_prices,
-        multipliers,
-        ideal_positions,
-        garch_covariances,
-        jump_covariances,
-        open_interest,
-        instrument_weights,
-        SETTINGS.IDM,
-        SETTINGS.maxmimum_forecast_ratio,
-        SETTINGS.max_acceptable_pct_of_open_interest,
-        SETTINGS.max_forecast_buffer,
-        SETTINGS.maximum_position_leverage,
-        SETTINGS.maximum_portfolio_leverage,
-        SETTINGS.maximum_correlation_risk,
-        SETTINGS.maximum_portfolio_risk,
-        SETTINGS.maximum_jump_risk,
-        SETTINGS.cost_penalty_scalar,
-    )
-
-    # 5. Place Orders
-
-    # Assumes ideal_positions is a dataframe, converts last row to dict
-    positions_dict = positions.iloc[-1].to_dict()
-
-    update_portfolio(positions_dict, instruments_df, SETTINGS.ORDER_PRIORITY, SETTINGS.MIN_DTE)
-
-
-if __name__ == "__main__":
     try:
-        # 1. Start Docker
         Docker.up()
 
-        # Run main
-        main()
+        # 2. Data Engine
+        pipeline = Pipeline()
+        # pipeline.rebuild()
+        pipeline.transform()
+        # pipeline.load()
+
+        # Get the data
+        trend_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
+
+        # 3. Risk Measures Calculation
+        risk_measures = RiskMeasures(
+            trend_tables,
+            SETTINGS.weights,
+            SETTINGS.warmup,
+            SETTINGS.unadj_column,
+            SETTINGS.expiration_column,
+            SETTINGS.date_column,
+        )
+
+        risk_measures.construct()
+
+        daily_returns = risk_measures.daily_returns
+        garch_variances = risk_measures.GARCH_variances
+        garch_covariances = risk_measures.GARCH_covariances
+
+        jump_covariances = get_jump_covariances(garch_covariances, 0.99, 256)
+
+        instruments_df = pd.read_csv("data/contract.csv")
+
+        multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
+
+        ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, covariance=garch_covariances)
+        unadj_prices = pipeline.get_prices()
+        open_interest = pipeline.get_open_interest()
+
+        unadj_prices = merge_dfs(unadj_prices)
+        open_interest = merge_dfs(open_interest)
+
+        instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
+
+        # 4. Dynamic Optimization
+        positions : pd.DataFrame = aggregator(
+            SETTINGS.capital,
+            SETTINGS.fixed_cost_per_contract,
+            SETTINGS.tau,
+            SETTINGS.asymmetric_risk_buffer,
+            unadj_prices,
+            multipliers,
+            ideal_positions,
+            garch_covariances,
+            jump_covariances,
+            open_interest,
+            instrument_weights,
+            SETTINGS.IDM,
+            SETTINGS.maxmimum_forecast_ratio,
+            SETTINGS.max_acceptable_pct_of_open_interest,
+            SETTINGS.max_forecast_buffer,
+            SETTINGS.maximum_position_leverage,
+            SETTINGS.maximum_portfolio_leverage,
+            SETTINGS.maximum_correlation_risk,
+            SETTINGS.maximum_portfolio_risk,
+            SETTINGS.maximum_jump_risk,
+            SETTINGS.cost_penalty_scalar,
+        )
+
+        # 5. Place Orders
+
+        # Assumes ideal_positions is a dataframe, converts last row to dict
+        positions_dict = positions.iloc[-1].to_dict()
+
+        update_portfolio(positions_dict, instruments_df, SETTINGS.ORDER_PRIORITY, SETTINGS.MIN_DTE)
+
     finally:
-        # 6. Close Docker
         Docker.down()
+
+if __name__ == "__main__":
+    main()
