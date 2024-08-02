@@ -335,7 +335,7 @@ class Transformation:
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= stdDev.daily_risk_price_terms()
+            trend[f"{t1}-{t2}"] /= stdDev.annual_risk_price_terms()
 
         # Scale the crossovers by the absolute mean of all previous crossovers
         # scalar_dict = {64: 1.91, 32: 2.79, 16: 4.1, 8: 5.95, 4: 8.53, 2: 12.1}
@@ -563,8 +563,9 @@ class Transforms:
         combined_dataframe: pd.DataFrame = pd.DataFrame(combined_signals)
         return combined_dataframe
 
-    def get_trend_tables(self) -> dict[str, pd.DataFrame]:
+    def get_price_tables(self) -> dict[str, pd.DataFrame]:
         trend_tables = {}
+        t: Transformation
         for t in self.transformations:
             trend_tables[t.get_symbol()] = t.format_trend()
         return trend_tables

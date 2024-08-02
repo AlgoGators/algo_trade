@@ -104,13 +104,13 @@ def main():
         Docker.up()
 
         # 2. Data Engine
-        pipeline = Pipeline()
+        pipeline: Pipeline = Pipeline()
         # pipeline.rebuild()
         pipeline.transform()
         # pipeline.load()
 
         # Get the data
-        price_tables: Dict[str, pd.DataFrame] = pipeline.get_trend_tables()
+        price_tables: Dict[str, pd.DataFrame] = pipeline.get_price_tables()
 
         # 3. Risk Measures Calculation
         risk_measures = RiskMeasures(
