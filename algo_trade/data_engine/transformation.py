@@ -570,8 +570,9 @@ class Transforms:
             for t in self.transformations
         }
         # Combine the trend and carry signals but of a 60% weight to the trend signals and 40% weight to the carry signals
+        #! found carry signals but mang fuck carry
         combined_signals: dict[str, pd.Series] = {
-            t.get_symbol(): trend_signals[t.get_symbol()]*0.6 + carry_signals[t.get_symbol()]*0.4 
+            t.get_symbol(): trend_signals[t.get_symbol()]*1.0 + carry_signals[t.get_symbol()]*0
             for t in self.transformations
         }
 
