@@ -101,10 +101,10 @@ def get_SP500(prices : pd.DataFrame):
     x.to_csv('sp500.csv')
 
 if __name__ == "__main__":
-    prices = pd.read_parquet('dyn_opt/unittesting/data/adj_prices.parquet')
-    benchmark = pd.read_parquet('dyn_opt/unittesting/data/ideal_positions.parquet')
-    portfolio = pd.read_parquet('dyn_opt/unittesting/data/optimized_positions.parquet')
-    multipliers = pd.read_parquet('dyn_opt/unittesting/data/multipliers.parquet')
+    prices = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/unadj_prices.csv', index_col=0)
+    benchmark = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/ideal_positions.csv', index_col=0)
+    portfolio = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/positions.csv', index_col=0)
+    multipliers = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/multipliers.csv', index_col=0)
 
     prices.index = pd.to_datetime(prices.index)
     benchmark.index = pd.to_datetime(benchmark.index)
@@ -115,17 +115,18 @@ if __name__ == "__main__":
     capital = 500_000
 
     portfolio_returns_PCT, benchmark_returns_PCT = calculate_PCT_PNL(portfolio, benchmark, prices, multipliers, capital)
-    
+
+    get_SP500(prices)
     sp500 = pd.read_csv('sp500.csv')
     sp500.index = pd.to_datetime(sp500['Date'])
     sp500 = sp500['Adj Close']
     sp500 = sp500.pct_change().dropna()
-    
+
+
     sp500_equity = equity_curve(sp500 * 100)
     portfolio_equity = equity_curve(portfolio_returns_PCT *100)
     benchmark_equity = equity_curve(benchmark_returns_PCT *100)
-
-    # plot_PNL(portfolio_returns_PCT, benchmark_returns_PCT)
+    
     plot_equity_curves(portfolio_equity, benchmark_equity, sp500_equity)
 
     X = sm.add_constant(benchmark_returns_PCT)
