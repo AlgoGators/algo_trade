@@ -128,7 +128,7 @@ def greedy_algorithm(ideal : np.ndarray, x0 : np.ndarray, weighted_costs_per_con
     return proposed_solution
 
 def clean_data(*args):
-    dfs = [df.set_index(pd.to_datetime(df.index)).dropna() for df in args]
+    dfs = [df.set_index(pd.to_datetime(df.index)).ffill().dropna() for df in args]
     intersection_index = reduce(lambda x, y: x.intersection(y), (df.index for df in dfs))
     dfs = [df.loc[intersection_index] for df in dfs]
 
@@ -180,7 +180,7 @@ def single_day_optimized_positions(
     risk_limited_positions = position_risk.position_limit_aggregator(
         maximum_position_leverage, capital, IDM, tau, maximum_forecast_ratio, 
         max_acceptable_pct_of_open_interest, max_forecast_buffer, optimized_positions_one_day, 
-        notional_exposure_per_contract_one_day, annualized_volatilities, instrument_weight_one_day, open_interest_one_day, additional_data)
+        notional_exposure_per_contract_one_day, annualized_volatilities, instrument_weight_one_day, open_interest_one_day, notional_exposure_per_contract_one_day, additional_data)
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 
