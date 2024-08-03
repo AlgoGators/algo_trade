@@ -18,7 +18,6 @@ GASOILINE,RBOB Gasoline US (Micro),CME,RB,GLBX.MDP3
 MXP,MEXUSD currency,CME,6M,GLBX.MDP3
 DOW,Micro E-Mini Dow Jones Industrial Average Index,CME,YM,GLBX.MDP3
 NZD,NZDUSD currency,CME,6N,GLBX.MDP3
-PLAT,Platinum,CME,PL,GLBX.MDP3
 SILVER,NYMEX Silver Index,CME,SI,GLBX.MDP3
 US30,Ultra Treasury Bond,CME,UB,GLBX.MDP3
 SOYBEAN_mini,Soybean mini,CME,ZS,GLBX.MDP3
