@@ -52,7 +52,7 @@ class SETTINGS:
     instrument_weight = 0.10
     IDM = 2.5
     maxmimum_forecast_ratio = 2.0
-    max_acceptable_pct_of_open_interest = 0.01
+    max_acceptable_pct_of_open_interest = 0.10
     max_forecast_buffer = 0.5
     maximum_position_leverage = 2.0
     maximum_portfolio_leverage = 20.0
@@ -137,7 +137,6 @@ def main():
         ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, variances=garch_variances, IDM=SETTINGS.IDM)
         unadj_prices = pipeline.get_prices()
         open_interest = pipeline.get_open_interest()
-        unadj_prices = merge_dfs(unadj_prices)
         open_interest = merge_dfs(open_interest)
 
         instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
