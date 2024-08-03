@@ -330,8 +330,8 @@ class Transformation:
         # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = (
-                data["Close"].ewm(span=t1, min_periods=2).mean()
-                - data["Close"].ewm(span=t2, min_periods=2).mean()
+                data["Close"].ewm(span=t1, min_periods=2, adjust=False).mean()
+                - data["Close"].ewm(span=t2, min_periods=2, adjust=False).mean()
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
