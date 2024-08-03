@@ -175,7 +175,9 @@ class Transformation:
         # Backadjust the raw dataframe
 
         # Flip the dataframe to backadjust
-        back = self.front[::-1].copy()
+        back = self.front.copy().iloc[::-1]
+
+        back.reset_index(inplace=True, drop=True)
 
         # Adding columns to the dataframe
         back["open_adj"] = back["open"]
@@ -205,7 +207,7 @@ class Transformation:
             back.at[i, "adj_factor"] = adj_factor
 
         # Flip the dataframe back
-        self.backadjusted = back[::-1].copy()
+        self.backadjusted = back.iloc[::-1].reset_index(drop=True)
 
     def format_carry(self) -> pd.DataFrame:
         # @NOTE: This method is used to format the carry data into the correct format for the database
