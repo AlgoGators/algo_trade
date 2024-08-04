@@ -170,7 +170,7 @@ def single_day_optimized_positions(
     optimized_weights_one_day = greedy_algorithm(ideal_positions_weighted, x0, costs_per_contract_weighted, held_positions_weighted, weight_per_contract_one_day, covariance_matrix_one_day, cost_penalty_scalar)
 
     buffered_weights = buffer_weights(
-        optimized_weights_one_day, held_positions_weighted, weight_per_contract_one_day, 
+        optimized_weights_one_day, held_positions_weighted, weight_per_contract_one_day,
         covariance_matrix_one_day, tau, asymmetric_risk_buffer)
 
     optimized_positions_one_day = buffered_weights / weight_per_contract_one_day
@@ -178,15 +178,15 @@ def single_day_optimized_positions(
     annualized_volatilities = daily_variance_to_annualized_volatility(np.diag(covariance_matrix_one_day))
 
     risk_limited_positions = position_risk.position_limit_aggregator(
-        maximum_position_leverage, capital, IDM, tau, maximum_forecast_ratio, 
-        max_acceptable_pct_of_open_interest, max_forecast_buffer, optimized_positions_one_day, 
+        maximum_position_leverage, capital, IDM, tau, maximum_forecast_ratio,
+        max_acceptable_pct_of_open_interest, max_forecast_buffer, optimized_positions_one_day,
         notional_exposure_per_contract_one_day, annualized_volatilities, instrument_weight_one_day, open_interest_one_day, additional_data)
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 
     portfolio_risk_limited_positions = portfolio_risk.portfolio_risk_aggregator(
-        risk_limited_positions, risk_limited_positions_weighted, covariance_matrix_one_day, 
-        jump_covariance_matrix_one_day, maximum_portfolio_leverage, maximum_correlation_risk, 
+        risk_limited_positions, risk_limited_positions_weighted, covariance_matrix_one_day,
+        jump_covariance_matrix_one_day, maximum_portfolio_leverage, maximum_correlation_risk,
         maximum_portfolio_risk, maximum_jump_risk, date=additional_data[1])
 
     return round_multiple(portfolio_risk_limited_positions, 1)
