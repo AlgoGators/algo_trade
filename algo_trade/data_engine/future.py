@@ -77,7 +77,7 @@ class Bar:
     Bar class to act as a base class for all bar classes
 
     Attributes:
-    -   instrument_id: str - The instrument_id of the bar
+    -   instrument: str - The instrument_id of the bar
     -   schema: Schema.BAR - The schema of the bar
     -   catalog: CATALOG - The catalog location of existing instrument data
     -   data: db.DBNStore - The data of the bar
@@ -88,6 +88,8 @@ class Bar:
     -   low: pd.Series - The low price of the bar
     -   close: pd.Series - The close price of the bar
     -   volume: pd.Series - The volume of the bar
+    -   expiration: pd.Series - The expiration of the bar
+    -   instrument_id: pd.Series - The instrument_id of the bar
 
     Methods:
 
@@ -100,6 +102,8 @@ class Bar:
     -   get_volume() -> pd.Series - Returns the volume of the bar as a series
     -   get_bar() -> pd.DataFrame - Returns the bar as a dataframe
     -   get_backadjusted() -> pd.DataFrame - Returns the backadjusted bar as a dataframe
+    -   get_expiration() -> pd.Series - Returns the expiration of the bar as a series
+    -   get_instrument_id() -> pd.Series - Returns the instrument_id of the bar as a series
 
     CONSTRUCTORS:
     -   construct() -> None - Constructs the bar by first attempting to retrieve the data and definitions from the data catalog
@@ -107,7 +111,7 @@ class Bar:
 
     def __init__(
         self,
-        instrument_id: str,
+        instrument: str,
         dataset: DATASET,
         schema: Agg,
         catalog: CATALOG = CATALOG.DATABENTO,
@@ -120,18 +124,21 @@ class Bar:
         self.low: pd.Series
         self.close: pd.Series
         self.volume: pd.Series
-        self.instrument_id: str = instrument_id
+        self.expiration: pd.Series
+        self.instrument_id: pd.Series
+        self.backadjusted: pd.Series = pd.Series()
+        self.instrument: str = instrument
         self.dataset: DATASET = dataset
         self.schema: Agg = schema
         self.catalog: CATALOG = catalog
 
     def __str__(self) -> str:
-        return f"Bar: {self.instrument_id} - {self.dataset} - {self.schema}"
+        return f"Bar: {self.instrument} - {self.dataset} - {self.schema}"
 
     def __repr__(self) -> str:
-        return f"Bar: {self.instrument_id} - {self.dataset} - {self.schema}"
+        return f"Bar: {self.instrument} - {self.dataset} - {self.schema}"
 
-    def get_instrument_id(self) -> str:
+    def get_instrument(self) -> str:
         """
         Returns the instrument_id of the bar
 
@@ -141,7 +148,7 @@ class Bar:
         Returns:
         str: The instrument_id of the bar
         """
-        return self.instrument_id
+        return self.instrument
 
     def get_dataset(self) -> DATASET:
         """
@@ -263,6 +270,34 @@ class Bar:
             raise ValueError("Volume is empty")
         return self.volume
 
+    def get_expiration(self) -> pd.Series:
+        """
+        Returns the expiration of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The expiration of the bar as a series
+        """
+        if self.expiration.empty:
+            raise ValueError("Expiration is empty")
+        return self.expiration
+
+    def get_instrument_id(self) -> pd.Series:
+        """
+        Returns the instrument_id of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The instrument_id of the bar as a series
+        """
+        if self.instrument_id.empty:
+            raise ValueError("Instrument ID is empty")
+        return self.instrument_id
+
     def get_bar(self) -> pd.DataFrame:
         """
         Returns the bar as a dataframe
@@ -284,9 +319,20 @@ class Bar:
             }
         )
 
-    def get_backadjusted(self) -> pd.DataFrame:
+    def get_backadjusted(self) -> pd.Series:
         """
-        Returns the backadjusted bar as a dataframe
+        Returns the backadjusted series as a pandas series
+
+        BACKADJUSTMENT:
+        Backadjustment is the process of removing sudden gaps in pricing data when a contracts rolls over from the front to the back.
+        While it does not preserve the integrity of the data, it gives a better representation of true pricemovements.
+        The process goes as follows:
+            1. Iterate backwards through a frame of both pricing data, and expiration(or another alias) data.
+            2. When a contract switches to the previous contract, calculate the difference between the current contract and previous contract.
+            3. Apply that previous adjustment to the current contract and all other following contracts keeping a rolling value
+            4. Repeat!
+
+        This method of futures adjustment is know as the panama canal method
 
         Args:
         None
@@ -294,12 +340,38 @@ class Bar:
         Returns:
         pd.DataFrame: The backadjusted bar as a dataframe
         """
-        # TODO: Implement backadjustment
         if self.definitions.empty or self.data.empty:
             raise ValueError("Data and Definitions are not present")
+        elif self.open.empty or self.high.empty or self.low.empty or self.close.empty or self.volume.empty:
+            raise ValueError("Open, High, Low, Close, or Volume is empty")
+        elif self.backadjusted.empty:
+            # Perform backadjustment on close prices and return the backadjusted series
+            backadjusted: pd.DataFrame = self.data.copy()[["close", "instrument_id"]]
+            # Adding adjustment sum column
+            backadjusted["adj"] = 0.0
+            # Adding clone of close column
+            backadjusted["close_adj"] = backadjusted["close"].copy()
 
-        # Backadjust the bar
-        pass
+            current_contract: int = backadjusted["instrument_id"].iloc[-1]
+
+            adj: float = 0.0
+            # Iterate backwards through the data
+            for i in range(len(self.instrument_id) - 1, 0, -1):
+                if self.instrument_id.iloc[i] != current_contract:
+                    adjustment: float = backadjusted["close_adj"].iloc[i + 1] - backadjusted["close_adj"].iloc[i]
+                    adj += adjustment
+                    # backadjusted["adj"].iloc[i] = backadjusted["adj"].iloc[i] + adjustment
+                    current_contract = backadjusted["instrument_id"].iloc[i]
+
+                # Apply the backadjustment to the close prices
+                backadjusted.at[i, "close_adj"] = backadjusted.at[i, "close_adj"] + adj
+                backadjusted["adj"].iloc[i] = adj
+
+            self.backadjusted = backadjusted["close"]
+            return self.backadjusted
+        else:
+            return self.backadjusted
+
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -318,10 +390,10 @@ class Bar:
         # TODO: Implement construct method
 
         data_path: Path = Path(
-            f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-data.parquet"
+            f"{self.catalog}/{self.instrument}/{self.schema}/{roll_type}-{contract_type}-data.parquet"
         )
         definitions_path: Path = Path(
-            f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet"
+            f"{self.catalog}/{self.instrument}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet"
         )
 
         range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
@@ -347,7 +419,7 @@ class Bar:
                 )
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
-                    symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
+                    symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
                     new_data: db.DBNStore = client.timeseries.get_range(
                         dataset=self.dataset,
                         symbols=[symbols],
@@ -377,11 +449,13 @@ class Bar:
             self.low = self.data["low"]
             self.close = self.data["close"]
             self.volume = self.data["volume"]
+            self.instrument_id = self.definitions["instrument_id"]
+            self.expiration = self.definitions["expiration"]
 
         else:
-            print(f"Data and Definitions not present for {self.instrument_id}")
+            print(f"Data and Definitions not present for {self.instrument}")
             # Submit a job request to retrieve the data and definitions
-            symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
+            symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
             # TODO: Implement job request submission
             # details: dict[str, Any] = client.batch.submit_job(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), encoding=db.Encoding.DBN start=start, end=end, stype_in=db.SType.CONTINUOUS, split_duration=db.SplitDuration.NONE)
             # print(f"Job Request Submitted: {details["symbols"]} - {details["schema"]} - {details["start"]} - {details["end"]}")
@@ -408,11 +482,12 @@ class Bar:
 
             # Set the timestamp, open, high, low, close, and volume
             self.timestamp = self.data.index
-            self.open = self.data["Open"]
-            self.high = self.data["High"]
-            self.low = self.data["Low"]
-            self.close = self.data["Close"]
-            self.volume = self.data["Volume"]
+            self.open = self.data["open"]
+            self.high = self.data["high"]
+            self.low = self.data["low"]
+            self.close = self.data["close"]
+            self.volume = self.data["volume"]
+            self.expiration = self.definitions["expiration"]
 
             # WARNING: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
@@ -585,7 +660,7 @@ class Future(Instrument):
         None
         """
         if name is None:
-            name = f"{bar.get_instrument_id()}-{roll_type}-{contract_type}"
+            name = f"{bar.get_instrument()}-{roll_type}-{contract_type}"
 
         bar.construct(
             client=self.client, roll_type=roll_type, contract_type=contract_type
@@ -602,7 +677,8 @@ if __name__ == "__main__":
     # Set sys.path to the base directory
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    future = Future("ES", "GLBX.MDP3")
+    future: Future = Future("ES", "GLBX.MDP3")
     bar = Bar("ES", DATASET.CME, Agg.DAILY)
     future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
-    print(future.get_front())
+    future.get_front().get_backadjusted()
+
