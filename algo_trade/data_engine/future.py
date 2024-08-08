@@ -348,10 +348,12 @@ class Bar:
                 symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
                 new_data: db.DBNStore = client.timeseries.get_range(
                     dataset=self.dataset,
-                    symbols=symbols,
+                    symbols=[symbols],
                     schema=db.Schema.from_str(self.schema),
                     start=data_end,
                     end=end,
+                    stype_in=db.SType.CONTINUOUS,
+                    stype_out=db.SType.INSTRUMENT_ID,
                 )
                 new_definitions: db.DBNStore = new_data.request_full_definitions(
                     client=client
