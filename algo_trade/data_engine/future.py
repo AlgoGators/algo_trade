@@ -512,6 +512,60 @@ class Future(Instrument):
         super().__init__(symbol, dataset)
         self.bars: dict[str, Bar] = {}
         self.asset = ASSET.FUT
+        self.front: Optional[Bar] = None
+        self.back: Optional[Bar] = None
+    
+    def __str__(self) -> str:
+        return f"Future: {self.symbol} - {self.dataset}"
+
+    def __repr__(self) -> str:
+        return f"Future: {self.symbol} - {self.dataset}"
+
+    def get_bars(self) -> dict[str, Bar]:
+        """
+        Returns the bars of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        dict[str, Bar]: The bars of the future instrument
+        """
+        if self.bars == {}:
+            raise ValueError("Bars are empty")
+        else:
+            return self.bars
+
+    def get_front(self) -> Bar:
+        """
+        Returns the front month contract of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        Bar: The front month contract of the future instrument
+        """
+        if self.front is None:
+            raise ValueError("Front is empty")
+        else:
+            return self.front
+
+    def get_back(self) -> Bar:
+        """
+        Returns the back month contract of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        Bar: The back month contract of the future instrument
+        """
+        if self.back is None:
+            raise ValueError("Back is empty")
+        else:
+            return self.back
+
 
     def add_data(
         self,
@@ -537,6 +591,10 @@ class Future(Instrument):
             client=self.client, roll_type=roll_type, contract_type=contract_type
         )
         self.bars[name] = bar
+        if contract_type == ContractType.FRONT:
+            self.front = bar
+        elif contract_type == ContractType.BACK:
+            self.back = bar
 
 
 if __name__ == "__main__":
@@ -547,4 +605,4 @@ if __name__ == "__main__":
     future = Future("ES", "GLBX.MDP3")
     bar = Bar("ES", DATASET.CME, Agg.DAILY)
     future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
-    print(future.bars)
+    print(future.get_front())
