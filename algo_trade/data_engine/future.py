@@ -302,6 +302,10 @@ class Bar():
         data_path: Path = Path(f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-data.parquet")
         definitions_path: Path = Path(f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet")
 
+        range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
+        start: pd.Timestamp = pd.Timestamp(range["start"])
+        end: pd.Timestamp = pd.Timestamp(range["end"])
+
         if data_path.exists() and definitions_path.exists():
             try:
                 self.data = pd.read_parquet(data_path)
@@ -310,10 +314,6 @@ class Bar():
                 print(f"Error: {e}")
                 return
 
-            range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
-
-            start: pd.Timestamp = pd.Timestamp(range["start"])
-            end: pd.Timestamp = pd.Timestamp(range["end"])
 
             data_end: pd.Timestamp = self.data["Timestamp"].iloc[-1]
             definitions_end: pd.Timestamp = self.definitions["Timestamp"].iloc[-1]
