@@ -175,6 +175,8 @@ class Bar():
         Returns:
         pd.Series: The timestamp of the bar as a series
         """
+        if self.timestamp.empty:
+            raise ValueError("Timestamp is empty")
         return self.timestamp
     
     def get_open(self) -> pd.Series:
@@ -187,6 +189,8 @@ class Bar():
         Returns:
         pd.Series: The open price of the bar as a series
         """
+        if self.open.empty:
+            raise ValueError("Open is empty")
         return self.open
     
     def get_high(self) -> pd.Series:
@@ -199,6 +203,8 @@ class Bar():
         Returns:
         pd.Series: The high price of the bar as a series
         """
+        if self.high.empty:
+            raise ValueError("High is empty")
         return self.high
     
     def get_low(self) -> pd.Series:
@@ -211,6 +217,8 @@ class Bar():
         Returns:
         pd.Series: The low price of the bar as a series
         """
+        if self.low.empty:
+            raise ValueError("Low is empty")
         return self.low
     
     def get_close(self) -> pd.Series:
@@ -223,6 +231,8 @@ class Bar():
         Returns:
         pd.Series: The close price of the bar as a series
         """
+        if self.close.empty:
+            raise ValueError("Close is empty")
         return self.close
     
     def get_volume(self) -> pd.Series:
@@ -235,6 +245,8 @@ class Bar():
         Returns:
         pd.Series: The volume of the bar as a series
         """
+        if self.volume.empty:
+            raise ValueError("Volume is empty")
         return self.volume
     
     def get_bar(self) -> pd.DataFrame:
@@ -248,12 +260,12 @@ class Bar():
         pd.DataFrame: The bar as a dataframe
         """
         return pd.DataFrame({
-            "timestamp": self.timestamp,
-            "open": self.open,
-            "high": self.high,
-            "low": self.low,
-            "close": self.close,
-            "volume": self.volume
+            "timestamp": self.get_timestamp(),
+            "open": self.get_open(),
+            "high": self.get_high(),
+            "low": self.get_low(),
+            "close": self.get_close(),
+            "volume": self.get_volume()
         })
     
     def get_backadjusted(self) -> pd.DataFrame:
@@ -267,18 +279,20 @@ class Bar():
         pd.DataFrame: The backadjusted bar as a dataframe
         """
         # TODO: Implement backadjustment
-        if self.definitions or self.data is None:
+        if self.definitions.empty or self.data.empty:
             raise ValueError("Data and Definitions are not present")
 
         # Backadjust the bar
         pass
 
-    def construct(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, range: dict[str, str]) -> None:
+    def construct(self, client: db.Historical, roll_type: RollType, contract_type: ContractType) -> None:
         """
         Constructs the bar by first attempting to retrieve the data and definitions from the data catalog
         
         Args:
-        None
+        -   client: db.Historical - The client to use to retrieve the data and definitions
+        -   roll_type: RollType - The roll type of the bar
+        -   contract_type: ContractType - The contract type of the bar
         
         Returns:
         None
@@ -296,8 +310,10 @@ class Bar():
                 print(f"Error: {e}")
                 return
 
-            start: pd.Timestamp = pd.Timestamp(range[self.dataset]["start"])
-            end: pd.Timestamp = pd.Timestamp(range[self.dataset]["end"])
+            range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
+
+            start: pd.Timestamp = pd.Timestamp(range["start"])
+            end: pd.Timestamp = pd.Timestamp(range["end"])
 
             data_end: pd.Timestamp = self.data["Timestamp"].iloc[-1]
             definitions_end: pd.Timestamp = self.definitions["Timestamp"].iloc[-1]
@@ -374,7 +390,7 @@ class Instrument(ABC):
         self.symbol = symbol
         self.dataset = dataset
         self.client: db.Historical = db.Historical(config["databento"]["api_historical"])
-        self.asset: Optional[ASSET] = None
+        self.asset: ASSET
         
 
     def get_symbol(self) -> str:
@@ -400,6 +416,18 @@ class Instrument(ABC):
         str: The dataset of the instrument
         """
         return self.dataset
+
+    def get_asset(self) -> ASSET:
+        """
+        Returns the asset of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The asset of the instrument
+        """
+        return self.asset
     
     def get_collection(self) -> Tuple[str, str]:
         """
@@ -422,182 +450,36 @@ class Future(Instrument):
     Attributes:
     symbol: str - The symbol of the future instrument
     dataset: str - The dataset of the future instrument
-    contracts: List[str] - The list of contracts that the future instrument will handle
+    data: dict[str, Data] - The data of the future instrument
+    
 
     Methods:
-    -   add_data(data: Data) -> None - Adds data to the future instrument
+    -   add_bar(bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None - Adds data to the future instrument
     """
-
-class Future:
     def __init__(self, symbol: str, dataset: str):
-        # Loop through dataframe and create a new datafram with backadjusted prices
-        self.symbol = symbol
-        self.dataset = dataset
-        # Open Config File
-
-    # Getters
-    def get_symbol(self) -> str:
-        return self.symbol
-
-    def get_dataset(self) -> str:
-        return self.dataset
-
-    def get_collection(self):
-        return (self.symbol, self.dataset)
-
-
-class Historical(Future):
-    def __init__(
-        self,
-        symbol: str,
-        dataset: str,
-        start_date: str,
-        end_date: str,
-        wait: bool = False,
-    ):
         super().__init__(symbol, dataset)
+        self.bars: dict[str, Bar] = {}
+        self.asset = ASSET.FUT
 
-        self.start = start_date
-        self.end = end_date
-        self.client = db.Historical(config["databento"]["api_historical"])
-        self.set_coro()
-        # If wait is True, then wait on the build function as a higher entity will collect all the coroutines and run them
-        if not wait:
-            asyncio.run(self.build())
+    def add_data(self, bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None:
+        """
+        Adds data to the future instrument
 
-    def set_coro(self):
-        # Retrieve futures data from databento
-        # Define the number of rolls to be used and roll methodolgy
-        # c = calender front month, n = open interest, v = volume
-        rolls_rule = ["c.0", "c.1"]
-        contract_with_rolls = [f"{self.symbol}.{roll}" for roll in rolls_rule]
-        self.data_coro = self.client.timeseries.get_range_async(
-            dataset=self.dataset,
-            symbols=contract_with_rolls,
-            schema="OHLCV-1d",
-            start=self.start,
-            end=self.end,
-            stype_in="continuous",
-        )
-        self.definitions_coro = self.client.timeseries.get_range_async(
-            dataset=self.dataset,
-            symbols=contract_with_rolls,
-            schema="definition",
-            start=self.start,
-            end=self.end,
-            stype_in="continuous",
-        )
+        Args:
+        data: Data - The data to add to the future instrument
+        name: str - The name of the data to add to the future instrument
 
-    # Run the coroutines
-    async def build(self):
-        # Timeouts for the coroutines... 5 minutes
-        timeout = 60 * 5
-        try:
-            # Run the coroutines
-            data, definitions = await asyncio.gather(
-                asyncio.wait_for(self.data_coro, timeout),
-                asyncio.wait_for(self.definitions_coro, timeout),
-            )
-        except asyncio.TimeoutError:
-            print(f"Timeout Error: Data not retrieved for {self.symbol}")
-            return
-        except aiohttp.ClientPayloadError as e:
-            print(f"Error: {e} for {self.symbol}")
-            return
+        Returns:
+        None
+        """
+        if name is None:
+            name = f"{bar.get_instrument_id()}-{roll_type}-{contract_type}"
 
-        # Store the data and definitions
-        self.data = data
-        self.definitions = definitions
-        # Build the raw dataframe
-        self.build_raw()
-        # Store the raw dataframe
-        self.store()
+        bar.construct(client=self.client, roll_type=roll_type, contract_type=contract_type)
+        self.bars[name] = bar
 
-    # Build the raw dataframe
-    def build_raw(self):
-        # Inner merges the data and definitions
-        data_df = self.data.to_df()
-        definitions_df = self.definitions.to_df()
-        # self.raw: pd.DataFrame = pd.merge(
-        #     data_df,
-        #     definitions_df,
-        #     how="inner",
-        #     left_index=True,
-        #     right_on=definitions_df.index,
-        #     suffixes=("_data", "_definition"),
-        # )
-        data_df.index.name = "timestamp"
-        definitions_df.index.name = "timestamp"
-        self.raw = pd.merge_asof(
-            data_df,
-            definitions_df,
-            on="timestamp",
-            direction="nearest",
-            suffixes=("_data", "_definition"),
-        )
-
-    def store(self):
-        # Save the raw dataframe as a parquet file in raw directory
-        try:
-            self.raw.to_parquet(f"tmp/{self.symbol}_{self.start}_{self.end}.parquet")
-        except AttributeError:
-            print(f"Error: {self.symbol} has no raw data... failed to store")
-
-    # Getters
-    def get_coro(self) -> list:
-        # Return the list of futures
-        return [self.data_coro, self.definitions_coro]
-
-    def get_contract_id(self):
-        return self.data.to_df()["instrument_id"].iloc[-1]
-
-    def get_raw(self) -> pd.DataFrame:
-        return self.raw
-
-    def get_definitions(self):
-        return self.definitions.to_df()
-
-
-class Live(Future):
-    def __init__(self, symbol: str, dataset: str, live_date: str):
-        super().__init__(symbol, dataset)
-
-        with open("config.toml", "rb") as file:
-            config = tl.load(file)
-
-        # Store live date
-        self.live_date = live_date
-
-        # Using Live API key
-        self.client = db.Historical(config["databento"]["api_historical"])
-
-        self.get_data()
-
-    # Get Live Data from Databento
-    def get_data(self):
-        # Get raw data from Databento
-        rolls_rule = ["c.0"]
-        contract_with_rolls = [f"{self.symbol}.{roll}" for roll in rolls_rule]
-        self.data = self.client.timeseries.get_range(
-            dataset=self.dataset,
-            symbols=contract_with_rolls,
-            schema="OHLCV-1d",
-            start=self.live_date,
-            stype_in="continuous",
-        )
-        # Storing in data attribute
-        return
-
-    def get_definition(self, date: str):
-        data = self.client.timeseries.get_range(
-            dataset=self.dataset,
-            stype_in="continuous",
-            symbols=f"{self.symbol}.c.0",
-            schema="definition",
-            start=self.live_date,
-        ).to_df()
-        return data
-
-    def get_raw(self) -> pd.DataFrame:
-        return self.data.to_df()
-        # THIS MIGHT CHANGE BASED ON THE LIVE API
+if __name__ == "__main__":
+    future = Future("ES", "GLBX.MDP3")
+    bar = Bar("ES", DATASET.CME, Agg.DAILY)
+    future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
+    print(future.bars)
