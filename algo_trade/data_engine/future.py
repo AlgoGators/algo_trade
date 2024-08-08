@@ -336,8 +336,8 @@ class Bar:
                 print(f"Error: {e}")
                 return
 
-            data_end: pd.Timestamp = self.data["Timestamp"].iloc[-1]
-            definitions_end: pd.Timestamp = self.definitions["Timestamp"].iloc[-1]
+            data_end: pd.Timestamp = self.data.index[-1]
+            definitions_end: pd.Timestamp = self.definitions.index[-1]
 
             # Check if the data and definitions are up to date
 
@@ -345,39 +345,38 @@ class Bar:
                 print(
                     "Data and Definitions are not up to date for {self.instrument_id}"
                 )
-                symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
-                new_data: db.DBNStore = client.timeseries.get_range(
-                    dataset=self.dataset,
-                    symbols=[symbols],
-                    schema=db.Schema.from_str(self.schema),
-                    start=data_end,
-                    end=end,
-                    stype_in=db.SType.CONTINUOUS,
-                    stype_out=db.SType.INSTRUMENT_ID,
-                )
-                new_definitions: db.DBNStore = new_data.request_full_definitions(
-                    client=client
-                )
+                # Try to retrieve the new data and definitions but if failed then do not update
+                try:
+                    symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
+                    new_data: db.DBNStore = client.timeseries.get_range(
+                        dataset=self.dataset,
+                        symbols=[symbols],
+                        schema=db.Schema.from_str(self.schema),
+                        start=data_end,
+                        end=end,
+                        stype_in=db.SType.CONTINUOUS,
+                        stype_out=db.SType.INSTRUMENT_ID,
+                    )
+                    new_definitions: db.DBNStore = new_data.request_full_definitions(
+                        client=client
+                    )
+                    # Combine new data with existing data and skip duplicates if they exist based on index
+                    self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates()
+                    self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates()
+                except Exception as e:
+                    print(f"Error: {e}")
 
-                # Combine new data with existing data and skip duplicates if they exist
-                self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates(
-                    subset=["Timestamp"], keep="last"
-                )
-                self.definitions = pd.concat(
-                    [self.definitions, new_definitions.to_df()]
-                ).drop_duplicates(subset=["Timestamp"], keep="last")
+            # Save the new data and definitions to the catalog
+            self.data.to_parquet(data_path)
+            self.definitions.to_parquet(definitions_path)
 
-                # Save the new data and definitions to the catalog
-                self.data.to_parquet(data_path)
-                self.definitions.to_parquet(definitions_path)
-
-                # Set the timestamp, open, high, low, close, and volume
-                self.timestamp = self.data["Timestamp"]
-                self.open = self.data["Open"]
-                self.high = self.data["High"]
-                self.low = self.data["Low"]
-                self.close = self.data["Close"]
-                self.volume = self.data["Volume"]
+            # Set the timestamp, open, high, low, close, and volume
+            self.timestamp = self.data.index
+            self.open = self.data["open"]
+            self.high = self.data["high"]
+            self.low = self.data["low"]
+            self.close = self.data["close"]
+            self.volume = self.data["volume"]
 
         else:
             print(f"Data and Definitions not present for {self.instrument_id}")
@@ -397,6 +396,9 @@ class Bar:
             )
             definitions: db.DBNStore = data.request_full_definitions(client=client)
 
+            # Make the directories if they do not exist
+            data_path.parent.mkdir(parents=True, exist_ok=True)
+            definitions_path.parent.mkdir(parents=True, exist_ok=True)
             # Save the data and definitions to the catalog
             data.to_parquet(data_path)
             definitions.to_parquet(definitions_path)
@@ -405,7 +407,7 @@ class Bar:
             self.definitions = definitions.to_df()
 
             # Set the timestamp, open, high, low, close, and volume
-            self.timestamp = self.data["Timestamp"]
+            self.timestamp = self.data.index
             self.open = self.data["Open"]
             self.high = self.data["High"]
             self.low = self.data["Low"]
