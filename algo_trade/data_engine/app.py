@@ -41,4 +41,3 @@ def create_app():
         return jsonify({"status": "ok"})
 
     return app
-

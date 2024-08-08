@@ -11,8 +11,8 @@ from sqlalchemy import create_engine, text
 from std_daily_price import standardDeviation
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-config_dir = os.path.join(base_dir, 'config')
-config_path = os.path.join(config_dir, 'config.toml')
+config_dir = os.path.join(base_dir, "config")
+config_path = os.path.join(config_dir, "config.toml")
 
 config_data: Dict[str, Any] = toml.load(config_path)
 

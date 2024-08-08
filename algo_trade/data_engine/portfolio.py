@@ -11,10 +11,11 @@ import tqdm
 from .future import Historical, Live
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-config_dir = os.path.join(base_dir, 'config')
-config_path = os.path.join(config_dir, 'config.toml')
+config_dir = os.path.join(base_dir, "config")
+config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
+
 
 class Portfolio:
     """
@@ -202,8 +203,12 @@ class HistoricalPortfolio(Portfolio):
                 job_id=def_job["id"],
             )
             # Load the data and definitions into a DBNStore object
-            data_dbn = db.DBNStore.from_file([p for p in data_paths if p.suffix == '.zst'][0])
-            def_dbn = db.DBNStore.from_file([p for p in def_paths if p.suffix == '.zst'][0])
+            data_dbn = db.DBNStore.from_file(
+                [p for p in data_paths if p.suffix == ".zst"][0]
+            )
+            def_dbn = db.DBNStore.from_file(
+                [p for p in def_paths if p.suffix == ".zst"][0]
+            )
             # Merge the data and definitions dataframes and store them
             data = data_dbn.to_df()
             definitions = def_dbn.to_df()
@@ -257,7 +262,7 @@ class LivePortfolio(Portfolio):
             """
             try:
                 df = pd.read_parquet(f"raw/{symbol}_full.parquet")
-                last_date = df['timestamp'].iloc[-1]
+                last_date = df["timestamp"].iloc[-1]
             except FileNotFoundError:
                 # Set the last date yesterday if the file is not found
                 last_date = datetime.now() - timedelta(days=1)
@@ -313,7 +318,7 @@ class LivePortfolio(Portfolio):
                 # Load the latest data from our contract dictionary as well as our data and definitions
                 new_data = contract.raw
                 contract_data = contract.data.to_df()
-                contract_def = contract.definitions.to_df() 
+                contract_def = contract.definitions.to_df()
                 # Append and join the dataframes but do not duplicate the data
                 df = pd.concat([df, new_data], axis=0)
                 data = pd.concat([data, contract_data], axis=0)

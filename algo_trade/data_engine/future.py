@@ -23,10 +23,12 @@ config: Dict[str, Any] = toml.load(config_path)
 class CATALOG(StrEnum):
     DATABENTO = f"data/catalog/databento/"
 
+
 class ASSET(StrEnum):
     FUT = "FUT"
     OPT = "OPT"
     EQ = "EQ"
+
 
 # TODO: Add more datasets
 class DATASET(StrEnum):
@@ -39,36 +41,41 @@ class Agg(StrEnum):
     HOURLY = "ohlcv-1h"
     MINUTE = "ohlcv-1m"
     SECOND = "ohlcv-1s"
+
     def __str__(self):
         return self.value
-    
+
     def __repr__(self):
         return self.value
+
 
 class RollType(StrEnum):
     CALENDAR = "c"
     OPEN_INTEREST = "n"
     VOLUME = "v"
+
     def __str__(self):
         return self.value
-    
+
     def __repr__(self):
         return self.value
+
 
 class ContractType(StrEnum):
     FRONT = "0"
     BACK = "1"
+
     def __str__(self):
         return self.value
-    
+
     def __repr__(self):
         return self.value
 
 
-class Bar():
+class Bar:
     """
     Bar class to act as a base class for all bar classes
-    
+
     Attributes:
     -   instrument_id: str - The instrument_id of the bar
     -   schema: Schema.BAR - The schema of the bar
@@ -97,7 +104,14 @@ class Bar():
     CONSTRUCTORS:
     -   construct() -> None - Constructs the bar by first attempting to retrieve the data and definitions from the data catalog
     """
-    def __init__(self, instrument_id: str, dataset: DATASET, schema: Agg, catalog: CATALOG = CATALOG.DATABENTO):
+
+    def __init__(
+        self,
+        instrument_id: str,
+        dataset: DATASET,
+        schema: Agg,
+        catalog: CATALOG = CATALOG.DATABENTO,
+    ):
         self.data: pd.DataFrame
         self.definitions: pd.DataFrame
         self.timestamp: pd.Series
@@ -120,10 +134,10 @@ class Bar():
     def get_instrument_id(self) -> str:
         """
         Returns the instrument_id of the bar
-        
+
         Args:
         None
-        
+
         Returns:
         str: The instrument_id of the bar
         """
@@ -132,10 +146,10 @@ class Bar():
     def get_dataset(self) -> DATASET:
         """
         Returns the dataset of the bar
-        
+
         Args:
         None
-        
+
         Returns:
         DATASET: The dataset of the bar
         """
@@ -144,10 +158,10 @@ class Bar():
     def get_schema(self) -> Agg:
         """
         Returns the schema of the bar
-        
+
         Args:
         None
-        
+
         Returns:
         Schema.BAR: The schema of the bar
         """
@@ -156,10 +170,10 @@ class Bar():
     def get_catalog(self) -> CATALOG:
         """
         Returns the catalog location of the existing instrument data
-        
+
         Args:
         None
-        
+
         Returns:
         CATALOG: The catalog location of the existing instrument data
         """
@@ -168,113 +182,115 @@ class Bar():
     def get_timestamp(self) -> pd.Series:
         """
         Returns the timestamp of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The timestamp of the bar as a series
         """
         if self.timestamp.empty:
             raise ValueError("Timestamp is empty")
         return self.timestamp
-    
+
     def get_open(self) -> pd.Series:
         """
         Returns the open price of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The open price of the bar as a series
         """
         if self.open.empty:
             raise ValueError("Open is empty")
         return self.open
-    
+
     def get_high(self) -> pd.Series:
         """
         Returns the high price of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The high price of the bar as a series
         """
         if self.high.empty:
             raise ValueError("High is empty")
         return self.high
-    
+
     def get_low(self) -> pd.Series:
         """
         Returns the low price of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The low price of the bar as a series
         """
         if self.low.empty:
             raise ValueError("Low is empty")
         return self.low
-    
+
     def get_close(self) -> pd.Series:
         """
         Returns the close price of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The close price of the bar as a series
         """
         if self.close.empty:
             raise ValueError("Close is empty")
         return self.close
-    
+
     def get_volume(self) -> pd.Series:
         """
         Returns the volume of the bar as a series
-        
+
         Args:
         None
-        
+
         Returns:
         pd.Series: The volume of the bar as a series
         """
         if self.volume.empty:
             raise ValueError("Volume is empty")
         return self.volume
-    
+
     def get_bar(self) -> pd.DataFrame:
         """
         Returns the bar as a dataframe
-        
+
         Args:
         None
-        
+
         Returns:
         pd.DataFrame: The bar as a dataframe
         """
-        return pd.DataFrame({
-            "timestamp": self.get_timestamp(),
-            "open": self.get_open(),
-            "high": self.get_high(),
-            "low": self.get_low(),
-            "close": self.get_close(),
-            "volume": self.get_volume()
-        })
-    
+        return pd.DataFrame(
+            {
+                "timestamp": self.get_timestamp(),
+                "open": self.get_open(),
+                "high": self.get_high(),
+                "low": self.get_low(),
+                "close": self.get_close(),
+                "volume": self.get_volume(),
+            }
+        )
+
     def get_backadjusted(self) -> pd.DataFrame:
         """
         Returns the backadjusted bar as a dataframe
-        
+
         Args:
         None
-        
+
         Returns:
         pd.DataFrame: The backadjusted bar as a dataframe
         """
@@ -285,22 +301,28 @@ class Bar():
         # Backadjust the bar
         pass
 
-    def construct(self, client: db.Historical, roll_type: RollType, contract_type: ContractType) -> None:
+    def construct(
+        self, client: db.Historical, roll_type: RollType, contract_type: ContractType
+    ) -> None:
         """
         Constructs the bar by first attempting to retrieve the data and definitions from the data catalog
-        
+
         Args:
         -   client: db.Historical - The client to use to retrieve the data and definitions
         -   roll_type: RollType - The roll type of the bar
         -   contract_type: ContractType - The contract type of the bar
-        
+
         Returns:
         None
         """
         # TODO: Implement construct method
 
-        data_path: Path = Path(f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-data.parquet")
-        definitions_path: Path = Path(f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet")
+        data_path: Path = Path(
+            f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-data.parquet"
+        )
+        definitions_path: Path = Path(
+            f"{self.catalog}/{self.instrument_id}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet"
+        )
 
         range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
         start: pd.Timestamp = pd.Timestamp(range["start"])
@@ -314,21 +336,34 @@ class Bar():
                 print(f"Error: {e}")
                 return
 
-
             data_end: pd.Timestamp = self.data["Timestamp"].iloc[-1]
             definitions_end: pd.Timestamp = self.definitions["Timestamp"].iloc[-1]
 
             # Check if the data and definitions are up to date
 
             if data_end != end or definitions_end != end:
-                print("Data and Definitions are not up to date for {self.instrument_id}")
+                print(
+                    "Data and Definitions are not up to date for {self.instrument_id}"
+                )
                 symbols: str = f"{self.instrument_id}.{roll_type}.{contract_type}"
-                new_data: db.DBNStore = client.timeseries.get_range(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), start=data_end, end=end)
-                new_definitions: db.DBNStore = new_data.request_full_definitions(client=client)
+                new_data: db.DBNStore = client.timeseries.get_range(
+                    dataset=self.dataset,
+                    symbols=symbols,
+                    schema=db.Schema.from_str(self.schema),
+                    start=data_end,
+                    end=end,
+                )
+                new_definitions: db.DBNStore = new_data.request_full_definitions(
+                    client=client
+                )
 
                 # Combine new data with existing data and skip duplicates if they exist
-                self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates(subset=["Timestamp"], keep="last")
-                self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates(subset=["Timestamp"], keep="last")
+                self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates(
+                    subset=["Timestamp"], keep="last"
+                )
+                self.definitions = pd.concat(
+                    [self.definitions, new_definitions.to_df()]
+                ).drop_duplicates(subset=["Timestamp"], keep="last")
 
                 # Save the new data and definitions to the catalog
                 self.data.to_parquet(data_path)
@@ -349,7 +384,13 @@ class Bar():
             # TODO: Implement job request submission
             # details: dict[str, Any] = client.batch.submit_job(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), encoding=db.Encoding.DBN start=start, end=end, stype_in=db.SType.CONTINUOUS, split_duration=db.SplitDuration.NONE)
             # print(f"Job Request Submitted: {details["symbols"]} - {details["schema"]} - {details["start"]} - {details["end"]}")
-            data: db.DBNStore = client.timeseries.get_range(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), start=start, end=end)
+            data: db.DBNStore = client.timeseries.get_range(
+                dataset=self.dataset,
+                symbols=symbols,
+                schema=db.Schema.from_str(self.schema),
+                start=start,
+                end=end,
+            )
             definitions: db.DBNStore = data.request_full_definitions(client=client)
 
             # Save the data and definitions to the catalog
@@ -370,6 +411,7 @@ class Bar():
             # WARNING: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
 
+
 class Instrument(ABC):
     """
     Instrument class to act as a base class for all asset classes
@@ -383,15 +425,17 @@ class Instrument(ABC):
     get_dataset() -> str - Returns the dataset of the instrument
     get_collection() -> Tuple[str, str] - Returns the symbol and dataset of the instrument
 
-    The instrument class is an 
+    The instrument class is an
 
     """
+
     def __init__(self, symbol: str, dataset: str):
         self.symbol = symbol
         self.dataset = dataset
-        self.client: db.Historical = db.Historical(config["databento"]["api_historical"])
+        self.client: db.Historical = db.Historical(
+            config["databento"]["api_historical"]
+        )
         self.asset: ASSET
-        
 
     def get_symbol(self) -> str:
         """
@@ -428,7 +472,7 @@ class Instrument(ABC):
         str: The asset of the instrument
         """
         return self.asset
-    
+
     def get_collection(self) -> Tuple[str, str]:
         """
         Returns the symbol and dataset of the instrument
@@ -441,6 +485,7 @@ class Instrument(ABC):
         """
         return (self.symbol, self.dataset)
 
+
 class Future(Instrument):
     """
     Future class is a representation of a future instrument within the financial markets
@@ -451,17 +496,24 @@ class Future(Instrument):
     symbol: str - The symbol of the future instrument
     dataset: str - The dataset of the future instrument
     data: dict[str, Data] - The data of the future instrument
-    
+
 
     Methods:
     -   add_bar(bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None - Adds data to the future instrument
     """
+
     def __init__(self, symbol: str, dataset: str):
         super().__init__(symbol, dataset)
         self.bars: dict[str, Bar] = {}
         self.asset = ASSET.FUT
 
-    def add_data(self, bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None:
+    def add_data(
+        self,
+        bar: Bar,
+        roll_type: RollType,
+        contract_type: ContractType,
+        name: Optional[str] = None,
+    ) -> None:
         """
         Adds data to the future instrument
 
@@ -475,8 +527,11 @@ class Future(Instrument):
         if name is None:
             name = f"{bar.get_instrument_id()}-{roll_type}-{contract_type}"
 
-        bar.construct(client=self.client, roll_type=roll_type, contract_type=contract_type)
+        bar.construct(
+            client=self.client, roll_type=roll_type, contract_type=contract_type
+        )
         self.bars[name] = bar
+
 
 if __name__ == "__main__":
     future = Future("ES", "GLBX.MDP3")

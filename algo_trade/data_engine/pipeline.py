@@ -37,7 +37,14 @@ class Pipeline:
         self.t.load()
         return
 
-    def positions(self, capital: float, tau: float, multipliers: pd.DataFrame, IDM : int, variances : pd.DataFrame) -> pd.DataFrame:
+    def positions(
+        self,
+        capital: float,
+        tau: float,
+        multipliers: pd.DataFrame,
+        IDM: int,
+        variances: pd.DataFrame,
+    ) -> pd.DataFrame:
         """
         Positions: This functions calculates the position sizes for each of the instruments in the portfolio.
 
@@ -49,7 +56,7 @@ class Pipeline:
         - tau = The risk tolerance parameter
 
         Args:
-        - capital: The amount of capital to be allocated to the portfolio 
+        - capital: The amount of capital to be allocated to the portfolio
         - tau: The risk aversion parameter
         - multipliers: The multipliers for each of the instruments in the portfolio
 
@@ -59,14 +66,17 @@ class Pipeline:
         w: int = 1 / len(self.symbols)
         signals: pd.DataFrame = self.t.signals(variances)
         price: pd.DataFrame = self.t.get_current_price()
-        positions : pd.DataFrame = signals * capital * IDM * w * tau / (variances ** 0.5 * 16) / price / 10
-        positions = positions.apply(lambda col: col / multipliers.loc['multiplier', col.name])
+        positions: pd.DataFrame = (
+            signals * capital * IDM * w * tau / (variances**0.5 * 16) / price / 10
+        )
+        positions = positions.apply(
+            lambda col: col / multipliers.loc["multiplier", col.name]
+        )
 
         return positions
 
     def get_price_tables(self) -> dict[str, pd.DataFrame]:
         return self.t.get_price_tables()
-
 
     def get_prices(self) -> pd.DataFrame:
         """
@@ -91,6 +101,7 @@ class Pipeline:
         - A dataframe of the open interest of the instruments in the portfolio
         """
         return self.t.get_open_interest()
+
     """
     We need a JSON Doc of a critical pieces of data.
     RISK MEASURES:
