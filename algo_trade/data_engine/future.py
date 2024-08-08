@@ -385,11 +385,13 @@ class Bar:
             # details: dict[str, Any] = client.batch.submit_job(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), encoding=db.Encoding.DBN start=start, end=end, stype_in=db.SType.CONTINUOUS, split_duration=db.SplitDuration.NONE)
             # print(f"Job Request Submitted: {details["symbols"]} - {details["schema"]} - {details["start"]} - {details["end"]}")
             data: db.DBNStore = client.timeseries.get_range(
-                dataset=self.dataset,
-                symbols=symbols,
+                dataset=str(self.dataset),
+                symbols=[symbols],
                 schema=db.Schema.from_str(self.schema),
                 start=start,
                 end=end,
+                stype_in=db.SType.CONTINUOUS,
+                stype_out=db.SType.INSTRUMENT_ID,
             )
             definitions: db.DBNStore = data.request_full_definitions(client=client)
 
@@ -534,6 +536,10 @@ class Future(Instrument):
 
 
 if __name__ == "__main__":
+    # Testing the Bar class
+    # Set sys.path to the base directory
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     future = Future("ES", "GLBX.MDP3")
     bar = Bar("ES", DATASET.CME, Agg.DAILY)
     future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
