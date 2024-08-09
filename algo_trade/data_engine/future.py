@@ -347,26 +347,17 @@ class Bar:
         elif self.backadjusted.empty:
             # Perform backadjustment on close prices and return the backadjusted series
             backadjusted: pd.DataFrame = self.data.copy()[["close", "instrument_id"]]
-            # Adding adjustment sum column
-            backadjusted["adj"] = 0.0
-            # Adding clone of close column
-            backadjusted["close_adj"] = backadjusted["close"].copy()
-
-            current_contract: int = backadjusted["instrument_id"].iloc[-1]
-
+            backadjusted.sort_index(ascending=False, inplace=True)
+            cumm_adj: float = 0.0
             adj: float = 0.0
-            # Iterate backwards through the data
-            for i in range(len(self.instrument_id) - 1, 0, -1):
-                if self.instrument_id.iloc[i] != current_contract:
-                    adjustment: float = backadjusted["close_adj"].iloc[i + 1] - backadjusted["close_adj"].iloc[i]
-                    adj += adjustment
-                    # backadjusted["adj"].iloc[i] = backadjusted["adj"].iloc[i] + adjustment
-                    current_contract = backadjusted["instrument_id"].iloc[i]
+            for i in range(1, len(backadjusted)):
+                if backadjusted.iloc[i]["instrument_id"] != backadjusted.iloc[i - 1]["instrument_id"]:
+                    adj = backadjusted["close"].iloc[i - 1] - backadjusted["close"].iloc[i]
+                    cumm_adj += adj
+                    # Adjust all following prices with slicing
+                    backadjusted.loc[backadjusted.index[i]:, "close"] += adj
 
-                # Apply the backadjustment to the close prices
-                backadjusted.at[i, "close_adj"] = backadjusted.at[i, "close_adj"] + adj
-                backadjusted["adj"].iloc[i] = adj
-
+            backadjusted.sort_index(ascending=True, inplace=True)
             self.backadjusted = backadjusted["close"]
             return self.backadjusted
         else:
