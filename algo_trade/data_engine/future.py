@@ -346,6 +346,7 @@ class Bar:
             raise ValueError("Open, High, Low, Close, or Volume is empty")
         elif self.backadjusted.empty:
             # Perform backadjustment on close prices and return the backadjusted series
+            # TODO: Check logic for backadjustment
             backadjusted: pd.DataFrame = self.data.copy()[["close", "instrument_id"]]
             backadjusted.sort_index(ascending=False, inplace=True)
             cumm_adj: float = 0.0
