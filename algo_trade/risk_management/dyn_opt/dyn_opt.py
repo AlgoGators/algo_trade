@@ -191,28 +191,38 @@ def single_day_optimized_positions(
 
     return round_multiple(portfolio_risk_limited_positions, 1)
 
-def iterator(
-        covariances : pd.DataFrame,
-        jump_covariances : pd.DataFrame,
-        ideal_positions : pd.DataFrame, 
-        weight_per_contract : pd.DataFrame, 
-        costs_per_contract : pd.DataFrame,
-        notional_exposure_per_contract : pd.DataFrame,
-        open_interest : pd.DataFrame,
-        instrument_weight : pd.DataFrame,
-        tau : float,
-        capital : float,
-        IDM : float,
-        maximum_forecast_ratio : float,
-        maximum_position_leverage : float,
-        max_acceptable_pct_of_open_interest : float,
-        max_forecast_buffer : float,
-        maximum_portfolio_leverage : float,
-        maximum_correlation_risk : float, 
-        maximum_portfolio_risk : float,
-        maximum_jump_risk : float,
-        asymmetric_risk_buffer : float,
-        cost_penalty_scalar : int = 10) -> pd.DataFrame:
+def aggregator(
+    capital : float,
+    fixed_cost_per_contract : float,
+    tau : float,
+    asymmetric_risk_buffer : float,
+    unadj_prices : pd.DataFrame,
+    multipliers : pd.DataFrame,
+    ideal_positions : pd.DataFrame,
+    covariances : pd.DataFrame,
+    jump_covariances : pd.DataFrame,
+    open_interest : pd.DataFrame,
+    instrument_weight : pd.DataFrame,
+    IDM : float,
+    maximum_forecast_ratio : float,
+    max_acceptable_pct_of_open_interest : float,
+    max_forecast_buffer : float,
+    maximum_position_leverage : float,
+    maximum_portfolio_leverage : float,
+    maximum_correlation_risk : float,
+    maximum_portfolio_risk : float,
+    maximum_jump_risk : float,
+    cost_penalty_scalar : int) -> pd.DataFrame:
+
+    unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight = clean_data(unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight)
+
+    multipliers = multipliers.sort_index(axis=1)
+
+    notional_exposure_per_contract = get_notional_exposure_per_contract(unadj_prices, multipliers)
+    weight_per_contract = get_weight_per_contract(notional_exposure_per_contract, capital)
+
+    costs_per_contract = pd.DataFrame(index=ideal_positions.index, columns=ideal_positions.columns).fillna(fixed_cost_per_contract)
+
     #@ Data cleaning
     ideal_positions, weight_per_contract, costs_per_contract, covariances = clean_data(ideal_positions, weight_per_contract, costs_per_contract, covariances)
 
@@ -222,8 +232,7 @@ def iterator(
     weight_per_contract = weight_per_contract[intersection_columns]
     costs_per_contract = costs_per_contract[intersection_columns]
 
-    optimized_positions = pd.DataFrame(index=ideal_positions.index, columns=ideal_positions.columns)
-    optimized_positions = optimized_positions.astype(np.float64)
+    optimized_positions = pd.DataFrame(index=ideal_positions.index, columns=ideal_positions.columns).astype(np.float64)
 
     vectorized_ideal_positions = ideal_positions.values
     vectorized_costs_per_contract = costs_per_contract.values
@@ -249,42 +258,3 @@ def iterator(
             maximum_correlation_risk, maximum_portfolio_risk, maximum_jump_risk, asymmetric_risk_buffer, cost_penalty_scalar, (ideal_positions.columns, date))
 
     return optimized_positions
-
-def aggregator(
-    capital : float,
-    fixed_cost_per_contract : float,
-    tau : float,
-    asymmetric_risk_buffer : float,
-    unadj_prices : pd.DataFrame,
-    multipliers : pd.DataFrame,
-    ideal_positions : pd.DataFrame,
-    covariances : pd.DataFrame,
-    jump_covariances : pd.DataFrame,
-    open_interest : pd.DataFrame,
-    instrument_weight : pd.DataFrame,
-    IDM : float,
-    maximum_forecast_ratio : float,
-    max_acceptable_pct_of_open_interest : float,
-    max_forecast_buffer : float,
-    maximum_position_leverage : float,
-    maximum_portfolio_leverage : float,
-    maximum_correlation_risk : float,
-    maximum_portfolio_risk : float,
-    maximum_jump_risk : float,
-    cost_penalty_scalar : int)-> pd.DataFrame:
-
-    unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight = clean_data(unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight)
-
-    multipliers = multipliers.sort_index(axis=1)
-
-    notional_exposure_per_contract = get_notional_exposure_per_contract(unadj_prices, multipliers)
-    weight_per_contract = get_weight_per_contract(notional_exposure_per_contract, capital)
-
-    costs_per_contract = pd.DataFrame(index=ideal_positions.index, columns=ideal_positions.columns).fillna(fixed_cost_per_contract)
-
-    return iterator(
-        covariances, jump_covariances, ideal_positions, weight_per_contract,
-        costs_per_contract, notional_exposure_per_contract, open_interest, 
-        instrument_weight, tau, capital, IDM, maximum_forecast_ratio, maximum_position_leverage, 
-        max_acceptable_pct_of_open_interest, max_forecast_buffer, maximum_portfolio_leverage, 
-        maximum_correlation_risk, maximum_portfolio_risk, maximum_jump_risk, asymmetric_risk_buffer, cost_penalty_scalar)
