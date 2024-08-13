@@ -364,6 +364,12 @@ class Bar:
         else:
             return self.backadjusted
 
+    def _set_exp(data: pd.Series, def: pd.Series) -> None:
+        # TODO: Implement this method
+        """
+        This _set_exp method is used to create an the correct timeseries that follows the the daily data of the OHLCV data versus the sparse data of the defintions which contains the correct expiration
+        """
+        pass
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
