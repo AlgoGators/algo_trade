@@ -157,7 +157,8 @@ def single_day_optimized_positions(
         maximum_jump_risk : float,
         asymmetric_risk_buffer : float,
         cost_penalty_scalar : int,
-        additional_data : tuple[list[str], list[datetime.datetime]]) -> np.ndarray:
+        additional_data : tuple[list[str], list[datetime.datetime]],
+        optimization : bool) -> np.ndarray:
     covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(covariances_one_day)
     jump_covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(jump_covariances_one_day)
 
@@ -167,13 +168,16 @@ def single_day_optimized_positions(
 
     x0 : np.ndarray = held_positions_weighted
 
-    optimized_weights_one_day = greedy_algorithm(ideal_positions_weighted, x0, costs_per_contract_weighted, held_positions_weighted, weight_per_contract_one_day, covariance_matrix_one_day, cost_penalty_scalar)
+    if optimization:
+        optimized_weights_one_day = greedy_algorithm(ideal_positions_weighted, x0, costs_per_contract_weighted, held_positions_weighted, weight_per_contract_one_day, covariance_matrix_one_day, cost_penalty_scalar)
 
-    buffered_weights = buffer_weights(
-        optimized_weights_one_day, held_positions_weighted, weight_per_contract_one_day,
-        covariance_matrix_one_day, tau, asymmetric_risk_buffer)
+        buffered_weights = buffer_weights(
+            optimized_weights_one_day, held_positions_weighted, weight_per_contract_one_day,
+            covariance_matrix_one_day, tau, asymmetric_risk_buffer)
 
-    optimized_positions_one_day = buffered_weights / weight_per_contract_one_day
+        optimized_positions_one_day = buffered_weights / weight_per_contract_one_day
+    else:
+        optimized_positions_one_day = ideal_positions_weighted / weight_per_contract_one_day
 
     annualized_volatilities = daily_variance_to_annualized_volatility(np.diag(covariance_matrix_one_day))
 
@@ -189,7 +193,7 @@ def single_day_optimized_positions(
         jump_covariance_matrix_one_day, maximum_portfolio_leverage, maximum_correlation_risk,
         maximum_portfolio_risk, maximum_jump_risk, date=additional_data[1])
 
-    return round_multiple(portfolio_risk_limited_positions, 1)
+    return round_multiple(portfolio_risk_limited_positions, 1) if optimization else portfolio_risk_limited_positions
 
 def aggregator(
     capital : float,
@@ -212,7 +216,8 @@ def aggregator(
     maximum_correlation_risk : float,
     maximum_portfolio_risk : float,
     maximum_jump_risk : float,
-    cost_penalty_scalar : int) -> pd.DataFrame:
+    cost_penalty_scalar : int,
+    optimization : bool = True) -> pd.DataFrame:
 
     unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight = clean_data(unadj_prices, ideal_positions, covariances, jump_covariances, open_interest, instrument_weight)
 
@@ -255,6 +260,6 @@ def aggregator(
             vectorized_weight_per_contract[n], vectorized_costs_per_contract[n], vectorized_notional_exposure_per_contract[n], 
             vectorized_open_interest[n], vectorized_instrument_weight[n], tau, capital, IDM, maximum_forecast_ratio, 
             maximum_position_leverage, max_acceptable_pct_of_open_interest, max_forecast_buffer, maximum_portfolio_leverage, 
-            maximum_correlation_risk, maximum_portfolio_risk, maximum_jump_risk, asymmetric_risk_buffer, cost_penalty_scalar, (ideal_positions.columns, date))
+            maximum_correlation_risk, maximum_portfolio_risk, maximum_jump_risk, asymmetric_risk_buffer, cost_penalty_scalar, (ideal_positions.columns, date), optimization)
 
     return optimized_positions
