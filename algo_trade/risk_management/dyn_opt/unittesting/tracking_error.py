@@ -3,6 +3,8 @@ import pandas as pd
 import statsmodels.api as sm
 import yfinance
 
+COST_PER_TRADE = 0#0.40
+
 
 def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
     pos_series = positions.groupby(positions.index).last()
@@ -12,7 +14,11 @@ def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
 
     price_returns = both_series.prices.diff()
 
-    returns = both_series.positions.shift(1) * price_returns
+    trades = both_series.positions.diff().abs()
+    print(trades.sum())
+    trading_costs = trades * COST_PER_TRADE
+
+    returns = both_series.positions.shift(1) * price_returns - trading_costs
 
     returns[returns.isna()] = 0.0
 
@@ -32,14 +38,14 @@ def calculate_PCT_PNL(portfolio, benchmark, prices, multipliers, capital) -> tup
     benchmark_PNLs_df = calculate_PNL_df(benchmark, prices, multipliers)
     portfolio_returns = calculate_portfolio_PNL(portfolio_PNLs_df)
     benchmark_returns = calculate_portfolio_PNL(benchmark_PNLs_df)
-    portfolio_returns = portfolio_returns / capital
-    benchmark_returns = benchmark_returns / capital
+    portfolio_returns /= capital
+    benchmark_returns /= capital
     return portfolio_returns, benchmark_returns
 
 def equity_curve(portfolio_returns : pd.Series) -> pd.Series:
     return portfolio_returns.cumsum().ffill()
 
-def benchmark_tracking_error(portfolio_returns_PCT : pd.Series, benchmark_returns_PCT : pd.Series) -> float:
+def benchmark_tracking_error(portfolio_returns_PCT : pd.Series, benchmark_returns_PCT : pd.Series, capital : float) -> float:
     """
     Returns the tracking error between the portfolio and benchmark positions
 
@@ -54,21 +60,21 @@ def benchmark_tracking_error(portfolio_returns_PCT : pd.Series, benchmark_return
 
     return (((portfolio_returns_PCT - benchmark_returns_PCT) ** 2).sum() / len(portfolio_returns_PCT)) ** 0.5
 
-def plot_equity_curves(portfolio_equity : pd.Series, benchmark_equity : pd.Series, sp500_equity):
-    try:
-        limits = pd.read_csv('log.csv', index_col=1)
-        limits.index = pd.to_datetime(limits.index)
-        limits.drop(columns=['Level', 'type', 'additional_info'], inplace=True)
+def plot_equity_curves(portfolio_equity : pd.Series, benchmark_equity : pd.Series, sp500_equity, label1 : str, label2 : str):
+    # try:
+    #     limits = pd.read_csv('log.csv', index_col=1)
+    #     limits.index = pd.to_datetime(limits.index)
+    #     limits.drop(columns=['Level', 'type', 'additional_info'], inplace=True)
 
-        limits['message'] = limits['subtype'] + ' ' + limits['info']
-        limits.drop(columns=['subtype', 'info'], inplace=True)
-        plt.scatter(limits.index, portfolio_equity.loc[limits.index], color='black', label='Limits')
-    except pd.errors.EmptyDataError:
-        pass
+    #     limits['message'] = limits['subtype'] + ' ' + limits['info']
+    #     limits.drop(columns=['subtype', 'info'], inplace=True)
+    #     plt.scatter(limits.index, portfolio_equity.loc[limits.index], color='black', label='Limits')
+    # except pd.errors.EmptyDataError:
+    #     pass
 
     plt.plot(sp500_equity, label='SP500')
-    plt.plot(portfolio_equity, label='Portfolio')
-    plt.plot(benchmark_equity, label='Benchmark')
+    plt.plot(benchmark_equity, label=label1)
+    plt.plot(portfolio_equity, label=label2)
     
     # Format x-axis to show dates every few years
     plt.gca().xaxis.set_major_locator(plt.matplotlib.dates.YearLocator(1))
@@ -82,9 +88,9 @@ def plot_equity_curves(portfolio_equity : pd.Series, benchmark_equity : pd.Serie
     plt.legend()
     plt.show()
 
-def plot_PNL(portfolio_returns : pd.Series, benchmark_returns : pd.Series):
-    plt.plot(portfolio_returns, label='Portfolio')
-    plt.plot(benchmark_returns, label='Benchmark')
+def plot_PNL(portfolio_returns : pd.Series, benchmark_returns : pd.Series, label1 : str, label2 : str):
+    plt.plot(benchmark_returns, label=label1)
+    plt.plot(portfolio_returns, label=label2)
     plt.xlabel('Time')
     plt.ylabel('PNL')
     plt.legend()
@@ -98,37 +104,9 @@ def information_ratio(portfolio, benchmark):
 
 def get_SP500(prices : pd.DataFrame):
     x = yfinance.download(tickers = '^GSPC', start=prices.index[0].strftime('%Y-%m-%d'), end=prices.index[-1].strftime('%Y-%m-%d'))
-    x.to_csv('sp500.csv')
+    return x
 
-if __name__ == "__main__":
-    prices = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/unadj_prices.csv', index_col=0)
-    benchmark = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/ideal_positions.csv', index_col=0)
-    portfolio = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/positions.csv', index_col=0)
-    multipliers = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/multipliers.csv', index_col=0)
-
-    prices.index = pd.to_datetime(prices.index)
-    benchmark.index = pd.to_datetime(benchmark.index)
-    portfolio.index = pd.to_datetime(portfolio.index)
-
-    prices = prices.reindex(portfolio.index)
-    benchmark = benchmark.reindex(portfolio.index)
-    capital = 500_000
-
-    portfolio_returns_PCT, benchmark_returns_PCT = calculate_PCT_PNL(portfolio, benchmark, prices, multipliers, capital)
-
-    get_SP500(prices)
-    sp500 = pd.read_csv('sp500.csv')
-    sp500.index = pd.to_datetime(sp500['Date'])
-    sp500 = sp500['Adj Close']
-    sp500 = sp500.pct_change().dropna()
-
-
-    sp500_equity = equity_curve(sp500 * 100)
-    portfolio_equity = equity_curve(portfolio_returns_PCT *100)
-    benchmark_equity = equity_curve(benchmark_returns_PCT *100)
-    
-    plot_equity_curves(portfolio_equity, benchmark_equity, sp500_equity)
-
+def analysis(benchmark_returns_PCT, portfolio_returns_PCT, capital):
     X = sm.add_constant(benchmark_returns_PCT)
 
     model = sm.OLS(portfolio_returns_PCT, X).fit()
@@ -142,5 +120,41 @@ if __name__ == "__main__":
     print(sharpe_ratio(benchmark_returns_PCT))
     print(information_ratio(portfolio_returns_PCT, benchmark_returns_PCT))
 
-    tracking_error = benchmark_tracking_error(portfolio_returns_PCT, benchmark_returns_PCT)
+    tracking_error = benchmark_tracking_error(portfolio_returns_PCT, benchmark_returns_PCT, capital)
     print(tracking_error)
+
+def main(prices : pd.DataFrame, benchmark : pd.DataFrame, portfolio : pd.DataFrame, multipliers : pd.DataFrame, label1 : str, label2 : str):
+    prices.index = pd.to_datetime(prices.index)
+    benchmark.index = pd.to_datetime(benchmark.index)
+    portfolio.index = pd.to_datetime(portfolio.index)
+
+    prices = prices.reindex(portfolio.index)
+    benchmark = benchmark.reindex(portfolio.index)
+    capital = 500_000
+
+    portfolio_returns_PCT, benchmark_returns_PCT = calculate_PCT_PNL(portfolio, benchmark, prices, multipliers, capital)
+
+    
+    sp500 : pd.DataFrame = get_SP500(prices)
+    sp500.index = pd.to_datetime(sp500.index)
+    sp500 = sp500['Adj Close']
+    sp500 = sp500.pct_change().dropna()
+
+
+    sp500_equity = equity_curve(sp500 * 100)
+    portfolio_equity = equity_curve(portfolio_returns_PCT) * 100
+    benchmark_equity = equity_curve(benchmark_returns_PCT) * 100
+    
+    plot_equity_curves(portfolio_equity, benchmark_equity, sp500_equity, label1, label2)
+
+    # analysis(benchmark_returns_PCT, portfolio_returns_PCT, capital)
+
+if __name__ == "__main__":
+    prices = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/adj_prices.csv', index_col=0)
+    benchmark = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/ideal_positions.csv', index_col=0)
+    portfolio = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/positions.csv', index_col=0)
+    instruments_df = pd.read_csv('algo_trade/risk_management/dyn_opt/unittesting/multipliers.csv', index_col=0)
+
+    multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
+
+    main(prices, benchmark, portfolio, multipliers, "Ideal Positions", "Optimized")
