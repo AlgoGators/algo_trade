@@ -364,12 +364,24 @@ class Bar:
         else:
             return self.backadjusted
 
-    def _set_exp(data: pd.Series, def: pd.Series) -> None:
-        # TODO: Implement this method
+    def _set_exp(self, instrument_ids: pd.DataFrame, definitions: pd.DataFrame) -> pd.Series:
         """
         This _set_exp method is used to create an the correct timeseries that follows the the daily data of the OHLCV data versus the sparse data of the defintions which contains the correct expiration
+
+        Args:
+            - instrument_ids: pd.Series - The daily individual instrument_id
+            - definitions: pd.Series - The definitions of our instruments which include both our expirations as well as matching instrument_id to our data series.
         """
-        pass
+        # TODO: Work merging and preserving the daily timestamp 
+
+        # First we need to turn our instrument ids into a dataframe and keep our current index
+        # Next we need to merge our instrument ids with our definitions but keep our index
+        instrument_ids: pd.DataFrame = pd.merge(instrument_ids, definitions, on="instrument_id", how="left")
+        # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
+        instrument_ids.set_index("timestamp", inplace=True)
+        expirations: pd.Series = instrument_ids["expiration"]
+        return expirations
+
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -448,7 +460,7 @@ class Bar:
             self.close = self.data["close"]
             self.volume = self.data["volume"]
             self.instrument_id = self.definitions["instrument_id"]
-            self.expiration = self.definitions["expiration"]
+            self.expiration = self._set_exp(self.instrument_id, self.definitions[["expiration", "instrument_id"]])
 
         else:
             print(f"Data and Definitions not present for {self.instrument}")
@@ -485,7 +497,7 @@ class Bar:
             self.low = self.data["low"]
             self.close = self.data["close"]
             self.volume = self.data["volume"]
-            self.expiration = self.definitions["expiration"]
+            self.expiration = self._set_exp(self.instrument_id, self.definitions[['expiration', 'instrument_id']])
 
             # WARNING: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
