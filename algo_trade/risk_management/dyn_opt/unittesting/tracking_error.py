@@ -3,7 +3,7 @@ import pandas as pd
 import statsmodels.api as sm
 import yfinance
 
-COST_PER_TRADE = 0#0.40
+COST_PER_TRADE = 3.00
 
 
 def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
@@ -14,11 +14,7 @@ def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
 
     price_returns = both_series.prices.diff()
 
-    trades = both_series.positions.diff().abs()
-    print(trades.sum())
-    trading_costs = trades * COST_PER_TRADE
-
-    returns = both_series.positions.shift(1) * price_returns - trading_costs
+    returns = both_series.positions.shift(1) * price_returns
 
     returns[returns.isna()] = 0.0
 
@@ -26,8 +22,12 @@ def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
 
 def calculate_PNL_df(positions : pd.DataFrame, prices : pd.DataFrame, multipliers : pd.DataFrame) -> pd.DataFrame:
     pnl = pd.DataFrame()
+    total_trades = 0
     for instrument in positions.columns:
-        pnl[instrument] = calculate_PNL(positions[instrument], prices[instrument]) * multipliers[instrument].iloc[0]
+        number_of_trades = positions[instrument].diff().abs()
+        total_trades += number_of_trades.sum()
+        trading_costs = number_of_trades * COST_PER_TRADE
+        pnl[instrument] = calculate_PNL(positions[instrument], prices[instrument]) * multipliers[instrument].iloc[0] - trading_costs
     return pnl
 
 def calculate_portfolio_PNL(pnl_df : pd.DataFrame) -> pd.Series:
