@@ -74,7 +74,7 @@ def max_pct_of_open_interest_position_limit(max_acceptable_pct_of_open_interest 
                   DeprecationWarning, 2)
     return max_acceptable_pct_of_open_interest * open_interest
 
-def minimum_volume(volume : float | np.ndarray, minimum_volume : float, positions : float | np.ndarray) -> float | np.ndarray:
+def volume_limit_positions(volume : float | np.ndarray, minimum_volume : float, positions : float | np.ndarray) -> float | np.ndarray:
     """
     Returns the lesser of the minimum volume and the number of contracts to be traded
     (works for both single instruments and arrays)
@@ -144,7 +144,7 @@ def position_limit_aggregator(
     
     max_leverage_positions = max_leverage_position_limit(maximum_position_leverage, capital, notional_exposure_per_contract)
     max_forecast_positions = max_forecast_position_limit(maximum_forecast_ratio, capital, IDM, tau, max_forecast_buffer, instrument_weight, notional_exposure_per_contract, annualized_volatility)
-    volume_limited_positions = minimum_volume(volumes, minimum_volume, contracts)
+    volume_limited_positions = volume_limit_positions(volumes, minimum_volume, contracts)
 
     for max_leverage_position, max_forecast_position, volume, contract, instrument_name in zip(max_leverage_positions, max_forecast_positions, volumes, contracts, additional_data[0]):
         if contract > max_leverage_position:
@@ -152,7 +152,7 @@ def position_limit_aggregator(
         if contract > max_forecast_position:
             logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, LogSubType.MAX_FORECAST, instrument_name, max_forecast_position))
         if volume < minimum_volume:
-            logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, LogSubType.MINIMUM_VOLUME, instrument_name, minimum_volume))
+            logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, LogSubType.MINIMUM_VOLUME, instrument_name, volume))
         
 
     return np.minimum(np.minimum(
