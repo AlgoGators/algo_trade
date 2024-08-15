@@ -53,6 +53,7 @@ class SETTINGS:
     IDM = 2.5
     maxmimum_forecast_ratio = 2.0
     max_acceptable_pct_of_open_interest = 0.10
+    MINIMUM_VOLUME = 100
     max_forecast_buffer = 0.5
     maximum_position_leverage = 2.0
     maximum_portfolio_leverage = 20.0
@@ -163,7 +164,7 @@ def main():
             instrument_weights,
             SETTINGS.IDM,
             SETTINGS.maxmimum_forecast_ratio,
-            SETTINGS.max_acceptable_pct_of_open_interest,
+            SETTINGS.MINIMUM_VOLUME,
             SETTINGS.max_forecast_buffer,
             SETTINGS.maximum_position_leverage,
             SETTINGS.maximum_portfolio_leverage,
@@ -189,7 +190,7 @@ def main():
             instrument_weights,
             SETTINGS.IDM,
             SETTINGS.maxmimum_forecast_ratio,
-            SETTINGS.max_acceptable_pct_of_open_interest,
+            SETTINGS.MINIMUM_VOLUME,
             SETTINGS.max_forecast_buffer,
             SETTINGS.maximum_position_leverage,
             SETTINGS.maximum_portfolio_leverage,
