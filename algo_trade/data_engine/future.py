@@ -109,6 +109,8 @@ class Bar:
     -   construct() -> None - Constructs the bar by first attempting to retrieve the data and definitions from the data catalog
     """
 
+    # TODO: Refactor to use the @property decorator for getters and setters
+
     def __init__(
         self,
         instrument: str,
@@ -364,7 +366,7 @@ class Bar:
         else:
             return self.backadjusted
 
-    def _set_exp(self, instrument_ids: pd.DataFrame, definitions: pd.DataFrame) -> pd.Series:
+    def _set_exp(self, data: pd.DataFrame, definitions: pd.DataFrame) -> pd.Series:
         """
         This _set_exp method is used to create an the correct timeseries that follows the the daily data of the OHLCV data versus the sparse data of the defintions which contains the correct expiration
 
@@ -372,14 +374,17 @@ class Bar:
             - instrument_ids: pd.Series - The daily individual instrument_id
             - definitions: pd.Series - The definitions of our instruments which include both our expirations as well as matching instrument_id to our data series.
         """
-        # TODO: Work merging and preserving the daily timestamp 
 
-        # First we need to turn our instrument ids into a dataframe and keep our current index
-        # Next we need to merge our instrument ids with our definitions but keep our index
-        instrument_ids: pd.DataFrame = pd.merge(instrument_ids, definitions, on="instrument_id", how="left")
+        # Assert all instrument_ids in data are within definitions
+        assert data["instrument_id"].isin(definitions["instrument_id"]).all(bool_only=True)
+
+        # We need to index our definitons by the instrument_id
+        exp_df: pd.DataFrame = definitions.reset_index()[["expiration", "instrument_id"]].set_index("instrument_id").drop_duplicates()
+
+        # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
+        data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
-        instrument_ids.set_index("timestamp", inplace=True)
-        expirations: pd.Series = instrument_ids["expiration"]
+        expirations: pd.Series = data["expiration"]
         return expirations
 
 
@@ -460,7 +465,7 @@ class Bar:
             self.close = self.data["close"]
             self.volume = self.data["volume"]
             self.instrument_id = self.definitions["instrument_id"]
-            self.expiration = self._set_exp(self.instrument_id, self.definitions[["expiration", "instrument_id"]])
+            self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
 
         else:
             print(f"Data and Definitions not present for {self.instrument}")
@@ -497,7 +502,7 @@ class Bar:
             self.low = self.data["low"]
             self.close = self.data["close"]
             self.volume = self.data["volume"]
-            self.expiration = self._set_exp(self.instrument_id, self.definitions[['expiration', 'instrument_id']])
+            self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
 
             # WARNING: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
@@ -690,5 +695,6 @@ if __name__ == "__main__":
     future: Future = Future("ES", "GLBX.MDP3")
     bar = Bar("ES", DATASET.CME, Agg.DAILY)
     future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
-    future.get_front().get_backadjusted()
+    exp = future.get_front().expiration
+    print(exp)
 
