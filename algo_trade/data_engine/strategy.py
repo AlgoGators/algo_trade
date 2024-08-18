@@ -144,8 +144,7 @@ class Portfolio:
         self._positions = value
 
     @property
-    def PnL(self) -> PnL:
-        return PnL(self.positions, self.prices, self.capital, self.multipliers)
+    def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)        
 
 ### Example Strategy
 
@@ -183,6 +182,8 @@ class TestPortfolio(Portfolio):
             (1.0, TestStrategy(instruments))
         ]
         super().__init__(instruments, self.strategies, capital)
+
+#! Remove above
 
 ### Standard Deviation Function
 def normal_std(prices : pd.Series) -> float:
@@ -287,7 +288,7 @@ def main(SP500, NASDAQ):
 
     test_port = TestPortfolio([SP500], 100_000)
     test_port.positions.replace(2, 1, inplace=True)
-    print(test_port.performance.get(PnL.ReturnType.PERCENT, PnL.Timespan.CUMULATIVE, aggregate=True))
+    print(test_port.PnL.get(PnL.ReturnType.PERCENT, PnL.Timespan.CUMULATIVE, aggregate=True))
 
 def get_price_data(ticker : str, period : str) -> pd.Series:
     import yfinance
