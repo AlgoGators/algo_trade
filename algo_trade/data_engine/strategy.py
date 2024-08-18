@@ -5,25 +5,30 @@ from typing import Optional, Callable
 from functools import partial
 
 ### Functionality
-def calculate_PNL(positions : pd.Series, prices : pd.Series) -> pd.Series:
-    pos_series = positions.groupby(positions.index).last()
-    both_series = pd.concat([pos_series, prices], axis=1)
-    both_series.columns = ["positions", "prices"]
-    both_series = both_series.ffill()
 
-    price_returns = both_series.prices.diff()
+def calculate_PNL(positions : pd.DataFrame, prices : pd.DataFrame, multipliers : pd.DataFrame) -> pd.DataFrame:
+    pnl = pd.DataFrame()
+    for instrument in positions.columns:
+        pos_series = positions[instrument].groupby(positions[instrument].index).last()
+        both_series = pd.concat([pos_series, prices[instrument]], axis=1)
+        both_series.columns = ["positions", "prices"]
+        both_series = both_series.ffill()
 
-    returns = both_series.positions.shift(1) * price_returns
+        price_returns = both_series.prices.diff()
 
-    returns[returns.isna()] = 0.0
+        returns = both_series.positions.shift(1) * price_returns
 
-    return returns
+        returns[returns.isna()] = 0.0
+
+        pnl[instrument] = returns * multipliers[instrument].iloc[0]
+
+    return pnl
 
 ### Abstract Classes
 
 class Instrument:
     def __init__(self, prices : pd.Series, name : str, multiplier : Optional[float] = None):
-        self.dates = prices.index # temp
+        self.dates = prices.index
         self.prices = prices
         self.name = name
         self.multiplier = multiplier
@@ -40,7 +45,7 @@ class Instrument:
 
 class Strategy:
     def __init__(self, instruments : list[Instrument]):
-        self.instruments = instruments
+        self.instruments : list[Instrument] = instruments
         self.rules : list[Callable] = []
         self.scalars : list[float] = []
 
@@ -64,9 +69,10 @@ class Strategy:
 
 
 class Portfolio:
-    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]]):
+    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], multipliers : pd.DataFrame = None):
         self.instruments = instruments
         self.weighted_strategies = weighted_strategies
+        self.multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
 
     @property
     def prices(self):
@@ -88,19 +94,16 @@ class Portfolio:
                 df = strategy.positions * weight
                 self._positions = df if self._positions.empty else self._positions + df
 
-            self.positions = self._positions
-
         return self._positions
     
     @positions.setter
     def positions(self, value):
         self._positions = value
 
-    
-    def performance(self) -> pd.Series:
-        for instrument_name in self.positions.columns:
-            PnL = calculate_PNL(self.positions[instrument_name], self.prices[instrument_name])
-            print(PnL)
+    @property
+    def performance(self) -> pd.DataFrame:
+        PnL = calculate_PNL(self.positions, self.prices, self.multipliers)
+        return PnL
 
 ### Example Strategy
 
@@ -218,6 +221,10 @@ def trend_signals(instruments : list[Instrument], std_fn : Callable) -> pd.DataF
 def main(SP500, NASDAQ):
     trend_following = TrendFollowing([SP500, NASDAQ], 0.5, 100_000)
     print(trend_following.positions)
+
+    trend_carry = TrendCarry([SP500, NASDAQ], 0.5, 100_000)
+
+    print(trend_carry.performance)
 
 def get_price_data(ticker : str, period : str) -> pd.Series:
     import yfinance
