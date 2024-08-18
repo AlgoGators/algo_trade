@@ -3,26 +3,68 @@ import numpy as np
 
 from typing import Optional, Callable
 from functools import partial
+from enum import Enum, auto
+
+DAYS_IN_YEAR = 256
 
 ### Functionality
 
-def calculate_PNL(positions : pd.DataFrame, prices : pd.DataFrame, multipliers : pd.DataFrame) -> pd.DataFrame:
-    pnl = pd.DataFrame()
-    for instrument in positions.columns:
-        pos_series = positions[instrument].groupby(positions[instrument].index).last()
-        both_series = pd.concat([pos_series, prices[instrument]], axis=1)
-        both_series.columns = ["positions", "prices"]
-        both_series = both_series.ffill()
+class PnL:
+    class ReturnType(Enum):
+        POINT = auto()
+        PERCENT = auto()
+    class Timespan(Enum):
+        DAILY = auto()
+        ANNUALIZED = auto()
+        CUMULATIVE = auto()
 
-        price_returns = both_series.prices.diff()
+    def __init__(self, positions : pd.DataFrame, prices : pd.DataFrame, capital : float, multipliers : pd.DataFrame | None = None):
+        self.__positions = positions
+        self.__prices = prices
+        self.__multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=positions.columns, data=np.ones((1, len(positions.columns))))
+        self.__capital = capital
+        self.__point_returns = self.__get_point_returns()
+    
+    def get(self, return_type : ReturnType, timespan : Timespan, aggregate : bool = False) -> pd.DataFrame:
+        match return_type, timespan:
+            case self.ReturnType.POINT, self.Timespan.DAILY:
+                return self.__point_returns.sum(axis=1) if aggregate else self.__point_returns
+            case self.ReturnType.POINT, self.Timespan.ANNUALIZED:
+                return (self.__point_returns * DAYS_IN_YEAR).sum(axis=1) if aggregate else self.__point_returns
+            case self.ReturnType.POINT, self.Timespan.CUMULATIVE:
+                return self.__point_returns.cumsum().sum(axis=1) if aggregate else self.__point_returns.cumsum()
 
-        returns = both_series.positions.shift(1) * price_returns
+            case self.ReturnType.PERCENT, self.Timespan.DAILY:
+                return self.__point_returns / self.__prices.shift(1) if not aggregate else self.__portfolio_percent_returns(self.__capital)
+            case self.ReturnType.PERCENT, self.Timespan.ANNUALIZED:
+                return self.__point_returns / self.__prices.shift(1) * DAYS_IN_YEAR if not aggregate else self.__portfolio_percent_returns(self.__capital) * DAYS_IN_YEAR
+            case self.ReturnType.PERCENT, self.Timespan.CUMULATIVE:
+                return (self.__point_returns / self.__prices.shift(1) + 1).cumprod() - 1 if not aggregate else self.__point_returns.sum(axis=1).cumsum() / self.__capital
 
-        returns[returns.isna()] = 0.0
+            case _:
+                raise NotImplementedError
 
-        pnl[instrument] = returns * multipliers[instrument].iloc[0]
+    def __portfolio_percent_returns(self, capital : float) -> pd.Series:
+        capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)
+        return capital_series / capital_series.shift(1) - 1
 
-    return pnl
+    def __get_point_returns(self) -> pd.DataFrame:
+        pnl = pd.DataFrame()
+        for instrument in self.__positions.columns:
+            pos_series = self.__positions[instrument].groupby(self.__positions[instrument].index).last()
+            both_series = pd.concat([pos_series, self.__prices[instrument]], axis=1)
+            both_series.columns = ["positions", "prices"]
+            both_series = both_series.ffill()
+
+            price_returns = both_series.prices.diff()
+
+            returns = both_series.positions.shift(1) * price_returns
+
+            returns[returns.isna()] = 0.0
+
+            pnl[instrument] = returns * self.__multipliers[instrument].iloc[0]
+
+        return pnl
 
 ### Abstract Classes
 
@@ -69,9 +111,10 @@ class Strategy:
 
 
 class Portfolio:
-    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], multipliers : pd.DataFrame = None):
+    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
         self.instruments = instruments
         self.weighted_strategies = weighted_strategies
+        self.capital = capital
         self.multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
 
     @property
@@ -101,9 +144,8 @@ class Portfolio:
         self._positions = value
 
     @property
-    def performance(self) -> pd.DataFrame:
-        PnL = calculate_PNL(self.positions, self.prices, self.multipliers)
-        return PnL
+    def PnL(self) -> PnL:
+        return PnL(self.positions, self.prices, self.capital, self.multipliers)
 
 ### Example Strategy
 
@@ -124,6 +166,23 @@ class TrendCarry(Portfolio):
             (0.6, TrendFollowing(instruments, risk_target, capital))
         ]
         super().__init__(instruments, self.strategies)
+
+#! Remove after testing
+
+class TestStrategy(Strategy):
+    def __init__(self, instruments : list[Instrument]):
+        super().__init__(instruments)
+        self.rules = [
+            partial(equal_weight)
+        ]
+        self.scalars = [2.0]
+
+class TestPortfolio(Portfolio):
+    def __init__(self, instruments : list[Instrument], capital : float):
+        self.strategies = [
+            (1.0, TestStrategy(instruments))
+        ]
+        super().__init__(instruments, self.strategies, capital)
 
 ### Standard Deviation Function
 def normal_std(prices : pd.Series) -> float:
@@ -150,7 +209,9 @@ def equal_weight(instruments : list[Instrument]) -> pd.DataFrame:
             df = instrument.prices.to_frame().rename(columns={'Close': instrument.name})
         else:
             df = df.join(instrument.prices.to_frame().rename(columns={'Close': instrument.name}), how='outer')
-    
+
+    df.ffill(inplace=True)
+
     not_null_mask = df.notnull()
     weight_mask = 1 / df.notnull().sum(axis=1).astype(int)
     
@@ -220,11 +281,13 @@ def trend_signals(instruments : list[Instrument], std_fn : Callable) -> pd.DataF
 
 def main(SP500, NASDAQ):
     trend_following = TrendFollowing([SP500, NASDAQ], 0.5, 100_000)
-    print(trend_following.positions)
+    # print(trend_following.positions)
 
-    trend_carry = TrendCarry([SP500, NASDAQ], 0.5, 100_000)
+    # trend_carry = TrendCarry([SP500, NASDAQ], 0.5, 100_000)
 
-    print(trend_carry.performance)
+    test_port = TestPortfolio([SP500], 100_000)
+    test_port.positions.replace(2, 1, inplace=True)
+    print(test_port.performance.get(PnL.ReturnType.PERCENT, PnL.Timespan.CUMULATIVE, aggregate=True))
 
 def get_price_data(ticker : str, period : str) -> pd.Series:
     import yfinance
