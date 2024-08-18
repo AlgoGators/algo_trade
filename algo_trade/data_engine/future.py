@@ -1,12 +1,9 @@
-import asyncio
 import os
-from typing import Any, Dict, Tuple, List, Literal, Optional
-from abc import abstractmethod, ABC
-from enum import StrEnum, Enum
+from typing import Any, Dict, Tuple, Optional
+from abc import ABC
+from enum import StrEnum 
 from pathlib import Path
-from dataclasses import dataclass
 
-import aiohttp
 import databento as db
 import pandas as pd
 import toml
@@ -33,6 +30,28 @@ class ASSET(StrEnum):
 # TODO: Add more datasets
 class DATASET(StrEnum):
     CME = "GLBX.MDP3"
+
+    @classmethod
+    def from_str(cls, value: str) -> "DATASET":
+        """
+        Converts a string to a DATASET enum based on the value to the Enum name and not value
+        so "CME" -> DATASET.CME
+
+        Args:
+            - value: str - The value to convert to a DATASET enum
+
+        Returns:
+            - DATASET: The DATASET enum
+        """
+        try:
+            return cls[value.upper()]
+        except ValueError:
+
+            for member in cls:
+                if member.name.lower() == value.lower():
+                    return member
+
+            raise ValueError(f"{value} is not a valid {cls.__name__}")
 
 
 # TODO: Add more schemas
@@ -120,7 +139,7 @@ class Bar:
     ):
         self.data: pd.DataFrame
         self.definitions: pd.DataFrame
-        self.timestamp: pd.Series
+        self.timestamp: pd.Index
         self.open: pd.Series
         self.high: pd.Series
         self.low: pd.Series
@@ -188,7 +207,7 @@ class Bar:
         """
         return self.catalog
 
-    def get_timestamp(self) -> pd.Series:
+    def get_timestamp(self) -> pd.Index:
         """
         Returns the timestamp of the bar as a series
 
@@ -196,7 +215,7 @@ class Bar:
         None
 
         Returns:
-        pd.Series: The timestamp of the bar as a series
+        pd.Index: The timestamp of the bar as a pandas index
         """
         if self.timestamp.empty:
             raise ValueError("Timestamp is empty")
@@ -361,7 +380,7 @@ class Bar:
                     backadjusted.loc[backadjusted.index[i]:, "close"] += adj
 
             backadjusted.sort_index(ascending=True, inplace=True)
-            self.backadjusted = backadjusted["close"]
+            self.backadjusted = pd.Series(backadjusted["close"])
             return self.backadjusted
         else:
             return self.backadjusted
@@ -423,8 +442,8 @@ class Bar:
                 print(f"Error: {e}")
                 return
 
-            data_end: pd.Timestamp = self.data.index[-1]
-            definitions_end: pd.Timestamp = self.definitions.index[-1]
+            data_end: pd.Timestamp = pd.Timestamp(self.data.index[-1])
+            definitions_end: pd.Timestamp = pd.Timestamp(self.definitions.index[-1])
 
             # Check if the data and definitions are up to date
 
@@ -459,12 +478,12 @@ class Bar:
 
             # Set the timestamp, open, high, low, close, and volume
             self.timestamp = self.data.index
-            self.open = self.data["open"]
-            self.high = self.data["high"]
-            self.low = self.data["low"]
-            self.close = self.data["close"]
-            self.volume = self.data["volume"]
-            self.instrument_id = self.definitions["instrument_id"]
+            self.open = pd.Series(self.data["open"])
+            self.high = pd.Series(self.data["high"])
+            self.low = pd.Series(self.data["low"])
+            self.close = pd.Series(self.data["close"])
+            self.volume = pd.Series(self.data["volume"])
+            self.instrument_id = pd.Series(self.definitions["instrument_id"])
             self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
 
         else:
@@ -497,14 +516,15 @@ class Bar:
 
             # Set the timestamp, open, high, low, close, and volume
             self.timestamp = self.data.index
-            self.open = self.data["open"]
-            self.high = self.data["high"]
-            self.low = self.data["low"]
-            self.close = self.data["close"]
-            self.volume = self.data["volume"]
+            self.open = pd.Series(self.data["open"])
+            self.high = pd.Series(self.data["high"])
+            self.low = pd.Series(self.data["low"])
+            self.close = pd.Series(self.data["close"])
+            self.volume = pd.Series(self.data["volume"])
+            self.instrument_id = pd.Series(self.definitions["instrument_id"])
             self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
 
-            # WARNING: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
+            # WARN: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
 
 
@@ -598,12 +618,106 @@ class Future(Instrument):
     -   add_bar(bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None - Adds data to the future instrument
     """
 
-    def __init__(self, symbol: str, dataset: str):
+    def __init__(self, symbol: str, dataset: str, multiplier: float = 1.0):
         super().__init__(symbol, dataset)
+        self.multiplier: float = multiplier
         self.bars: dict[str, Bar] = {}
         self.asset = ASSET.FUT
-        self.front: Optional[Bar] = None
-        self.back: Optional[Bar] = None
+        self.__front__: Bar
+        self.__back__: Bar
+        self.__price__: pd.Series
+
+
+    @property
+    def front(self) -> Bar:
+        """
+        Returns the front month contract of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        Bar: The front month contract of the future instrument
+        """
+        if self.__front__ is None:
+            raise ValueError("Front is empty")
+        return self.__front__
+
+    @front.setter
+    def front(self, value: Bar) -> None:
+        """
+        Sets the front month contract of the future instrument
+
+        Args:
+        value: Bar - The front month contract of the future instrument
+
+        Returns:
+        None
+        """
+        self.__front__ = value
+
+    @front.deleter
+    def front(self) -> None:
+        """
+        Deletes the front month contract of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        None
+        """
+        del self.__front__
+
+    front.__doc__ = """
+    The front month contract of the future instrument
+
+    Args:
+        
+    Returns:
+        pd.Series: The front month contract of the future instrument
+    """
+
+    @property
+    def price(self) -> pd.Series:
+        """
+        Returns the price of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The price of the future instrument
+        """
+        if self.__price__.empty:
+            raise ValueError("Price is empty")
+        return self.__price__
+
+    @price.setter
+    def price(self, value: pd.Series) -> None:
+        """
+        Sets the price of the future instrument
+
+        Args:
+        value: pd.Series - The price of the future instrument
+
+        Returns:
+        None
+        """
+        self.__price__ = value
+
+    @price.deleter
+    def price(self) -> None:
+        """
+        Deletes the price of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        None
+        """
+        del self.__price__
     
     def __str__(self) -> str:
         return f"Future: {self.symbol} - {self.dataset}"
@@ -659,30 +773,34 @@ class Future(Instrument):
 
     def add_data(
         self,
-        bar: Bar,
+        schema: Agg,
         roll_type: RollType,
         contract_type: ContractType,
         name: Optional[str] = None,
     ) -> None:
         """
-        Adds data to the future instrument
+        Adds data to the future instrument but first creates a bar object based on the schema
 
         Args:
-        data: Data - The data to add to the future instrument
-        name: str - The name of the data to add to the future instrument
+        schema: Schema.BAR - The schema of the bar
+        roll_type: RollType - The roll type of the bar
+        contract_type: ContractType - The contract type of the bar
+        name: Optional[str] - The name of the bar
 
         Returns:
         None
         """
+        bar: Bar = Bar(instrument=self.symbol, dataset=DATASET.from_str(self.dataset), schema=schema)
+
         if name is None:
             name = f"{bar.get_instrument()}-{roll_type}-{contract_type}"
 
-        bar.construct(
-            client=self.client, roll_type=roll_type, contract_type=contract_type
-        )
+        bar.construct(client=self.client, roll_type=roll_type, contract_type=contract_type)
+
         self.bars[name] = bar
         if contract_type == ContractType.FRONT:
             self.front = bar
+            self.price = bar.get_close() * self.multiplier
         elif contract_type == ContractType.BACK:
             self.back = bar
 
@@ -692,9 +810,7 @@ if __name__ == "__main__":
     # Set sys.path to the base directory
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    future: Future = Future("ES", "GLBX.MDP3")
-    bar = Bar("ES", DATASET.CME, Agg.DAILY)
-    future.add_data(bar, RollType.CALENDAR, ContractType.FRONT)
+    future: Future = Future("ES", "CME")
+    future.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
     exp = future.get_front().expiration
-    print(exp)
 
