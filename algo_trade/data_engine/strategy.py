@@ -3,7 +3,6 @@ import numpy as np
 
 from typing import Optional, Callable
 from functools import partial
-from enum import Enum, auto
 from pnl import PnL
 
 ### Abstract Classes
