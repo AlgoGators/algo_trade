@@ -3,8 +3,9 @@ import numpy as np
 
 from typing import Optional, Callable
 from functools import partial
-from enum import Enum, auto
 from pnl import PnL
+
+from .future import Future, Instrument
 
 ### Abstract Classes
 
@@ -50,42 +51,6 @@ class Strategy:
         self._positions = value
 
 
-class Portfolio:
-    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
-        self.instruments = instruments
-        self.weighted_strategies = weighted_strategies
-        self.capital = capital
-        self.multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
-
-    @property
-    def prices(self):
-        if not hasattr(self, '_prices'):
-            self._prices = pd.DataFrame()
-            for instrument in self.instruments:
-                if self._prices.empty:
-                    self._prices = instrument.prices.to_frame().rename(columns={'Close': instrument.name})
-                else:
-                    self._prices = self._prices.join(instrument.prices.to_frame().rename(columns={'Close': instrument.name}), how='outer')
-
-        return self._prices
-
-    @property
-    def positions(self) -> pd.DataFrame:
-        if not hasattr(self, '_positions'):
-            self._positions = pd.DataFrame()
-            for weight, strategy in self.weighted_strategies:
-                df = strategy.positions * weight
-                self._positions = df if self._positions.empty else self._positions + df
-
-        return self._positions
-    
-    @positions.setter
-    def positions(self, value):
-        self._positions = value
-
-    @property
-    def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)        
-
 ### Example Strategy
 
 class TrendFollowing(Strategy):
@@ -98,16 +63,6 @@ class TrendFollowing(Strategy):
         ]
         self.scalars = [capital]
 
-### Example Portfolio
-class TrendCarry(Portfolio):
-    def __init__(self, instruments : list[Instrument], risk_target : float, capital : float):
-        self.strategies = [
-            (0.6, TrendFollowing(instruments, risk_target, capital))
-        ]
-        super().__init__(instruments, self.strategies)
-
-#! Remove after testing
-
 class TestStrategy(Strategy):
     def __init__(self, instruments : list[Instrument]):
         super().__init__(instruments)
@@ -116,12 +71,6 @@ class TestStrategy(Strategy):
         ]
         self.scalars = [2.0]
 
-class TestPortfolio(Portfolio):
-    def __init__(self, instruments : list[Instrument], capital : float):
-        self.strategies = [
-            (1.0, TestStrategy(instruments))
-        ]
-        super().__init__(instruments, self.strategies, capital)
 
 #! Remove above
 
