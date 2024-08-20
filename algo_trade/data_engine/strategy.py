@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional, Callable
 from functools import partial
 from pnl import PnL
+from dyn_opt.dyn_opt import aggregator
 
 from .future import Future, Instrument
 
@@ -15,16 +16,6 @@ class Instrument:
         self.prices = prices
         self.name = name
         self.multiplier = multiplier
-
-    # Vol is Work in Progress
-    @property
-    def volatility(self) -> float:
-        if not hasattr(self, '_volatility'):
-            return None
-        return self._volatility
-
-    def set_volatility(self, std_fn : Callable):
-        self._volatility = std_fn(self.prices)
 
 class Strategy:
     def __init__(self, instruments : list[Instrument]):
@@ -49,7 +40,6 @@ class Strategy:
     @positions.setter
     def positions(self, value):
         self._positions = value
-
 
 ### Example Strategy
 
@@ -174,10 +164,6 @@ def main(SP500, NASDAQ):
     # print(trend_following.positions)
 
     # trend_carry = TrendCarry([SP500, NASDAQ], 0.5, 100_000)
-
-    test_port = TestPortfolio([SP500], 100_000)
-    test_port.positions.replace(2, 1, inplace=True)
-    print(test_port.PnL.get(PnL.ReturnType.PERCENT, PnL.Timespan.CUMULATIVE, aggregate=True))
 
 def get_price_data(ticker : str, period : str) -> pd.Series:
     import yfinance
