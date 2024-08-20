@@ -4,7 +4,6 @@ import numpy as np
 from typing import Optional, Callable
 from functools import partial
 from pnl import PnL
-from dyn_opt.dyn_opt import aggregator
 
 from .future import Future, Instrument
 
