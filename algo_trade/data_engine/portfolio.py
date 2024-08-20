@@ -8,6 +8,7 @@ import toml
 from .strategy import Strategy, TrendFollowing, TestStrategy
 from .future import Instrument, Future
 from .pnl import PnL
+from dyn_opt.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -68,3 +69,16 @@ class TestPortfolio(Portfolio):
         ]
         super().__init__(instruments, self.strategies, capital)
 
+
+def dynamic_optimization(portfolio : Portfolio):
+    instruments = portfolio.instruments
+    positions = portfolio.positions
+    capital = portfolio.capital
+
+    aggregator(
+        portfolio.capital,
+        None,
+        None,
+        None,
+
+    )
