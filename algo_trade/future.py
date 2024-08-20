@@ -91,7 +91,7 @@ class ContractType(StrEnum):
         return self.value
 
 
-class Bar:
+class Contract:
     """
     Bar class to act as a base class for all bar classes
 
@@ -319,7 +319,7 @@ class Bar:
             raise ValueError("Instrument ID is empty")
         return self.instrument_id
 
-    def get_bar(self) -> pd.DataFrame:
+    def get_contract(self) -> pd.DataFrame:
         """
         Returns the bar as a dataframe
 
@@ -655,14 +655,14 @@ class Future(Instrument):
     def __init__(self, symbol: str, dataset: str, multiplier: float = 1.0):
         super().__init__(symbol, dataset)
         self.multiplier: float = multiplier
-        self.bars: dict[str, Bar] = {}
+        self.contracts: dict[str, Contract] = {}
         self.asset = ASSET.FUT
-        self.__front__: Bar
-        self.__back__: Bar
-        self.__price__: pd.Series
+        self._front: Contract
+        self._back: Contract
+        self._price: pd.Series
 
     @property
-    def front(self) -> Bar:
+    def front(self) -> Contract:
         """
         Returns the front month contract of the future instrument
 
@@ -672,12 +672,12 @@ class Future(Instrument):
         Returns:
         Bar: The front month contract of the future instrument
         """
-        if self.__front__ is None:
+        if self._front is None:
             raise ValueError("Front is empty")
-        return self.__front__
+        return self._front
 
     @front.setter
-    def front(self, value: Bar) -> None:
+    def front(self, value: Contract) -> None:
         """
         Sets the front month contract of the future instrument
 
@@ -687,7 +687,7 @@ class Future(Instrument):
         Returns:
         None
         """
-        self.__front__ = value
+        self._front = value
 
     @front.deleter
     def front(self) -> None:
@@ -700,7 +700,7 @@ class Future(Instrument):
         Returns:
         None
         """
-        del self.__front__
+        del self._front
 
     front.__doc__ = """
     The front month contract of the future instrument
@@ -722,9 +722,9 @@ class Future(Instrument):
         Returns:
         pd.Series: The price of the future instrument
         """
-        if self.__price__.empty:
+        if self._price.empty:
             raise ValueError("Price is empty")
-        return self.__price__
+        return self._price
 
     @price.setter
     def price(self, value: pd.Series) -> None:
@@ -737,7 +737,7 @@ class Future(Instrument):
         Returns:
         None
         """
-        self.__price__ = value
+        self._price = value
 
     @price.deleter
     def price(self) -> None:
@@ -750,7 +750,7 @@ class Future(Instrument):
         Returns:
         None
         """
-        del self.__price__
+        del self._price
 
     def __str__(self) -> str:
         return f"Future: {self.symbol} - {self.dataset}"
@@ -758,7 +758,7 @@ class Future(Instrument):
     def __repr__(self) -> str:
         return f"Future: {self.symbol} - {self.dataset}"
 
-    def get_bars(self) -> dict[str, Bar]:
+    def get_contracts(self) -> dict[str, Contract]:
         """
         Returns the bars of the future instrument
 
@@ -768,12 +768,12 @@ class Future(Instrument):
         Returns:
         dict[str, Bar]: The bars of the future instrument
         """
-        if self.bars == {}:
+        if self.contracts == {}:
             raise ValueError("Bars are empty")
         else:
-            return self.bars
+            return self.contracts
 
-    def get_front(self) -> Bar:
+    def get_front(self) -> Contract:
         """
         Returns the front month contract of the future instrument
 
@@ -788,7 +788,7 @@ class Future(Instrument):
         else:
             return self.front
 
-    def get_back(self) -> Bar:
+    def get_back(self) -> Contract:
         """
         Returns the back month contract of the future instrument
 
@@ -822,25 +822,25 @@ class Future(Instrument):
         Returns:
         None
         """
-        bar: Bar = Bar(
+        contract: Contract = Contract(
             instrument=self.symbol,
             dataset=DATASET.from_str(self.dataset),
             schema=schema,
         )
 
         if name is None:
-            name = f"{bar.get_instrument()}-{roll_type}-{contract_type}"
+            name = f"{contract.get_instrument()}-{roll_type}-{contract_type}"
 
-        bar.construct(
+        contract.construct(
             client=self.client, roll_type=roll_type, contract_type=contract_type
         )
 
-        self.bars[name] = bar
+        self.contracts[name] = contract
         if contract_type == ContractType.FRONT:
-            self.front = bar
-            self.price = bar.get_close() * self.multiplier
+            self.front = contract
+            self.price = contract.get_close()
         elif contract_type == ContractType.BACK:
-            self.back = bar
+            self.back = contract
 
 
 if __name__ == "__main__":
