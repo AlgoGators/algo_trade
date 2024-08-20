@@ -3,22 +3,36 @@ import numpy as np
 
 from typing import Optional, Callable
 from functools import partial
-from pnl import PnL
 
-from .future import Future, Instrument
+from future import Future, Instrument, RollType, ContractType, Agg
 
 ### Abstract Classes
 
-class Instrument:
-    def __init__(self, prices : pd.Series, name : str, multiplier : Optional[float] = None):
-        self.dates = prices.index
-        self.prices = prices
-        self.name = name
-        self.multiplier = multiplier
+# class Instrument:
+#     def __init__(self, prices : pd.Series, name : str, multiplier : Optional[float] = None):
+#         self.dates = prices.index
+#         self.prices = prices
+#         self.name = name
+#         self.multiplier = multiplier
+#
+#     # Vol is Work in Progress
+#     @property
+#     def volatility(self) -> float:
+#         if not hasattr(self, '_volatility'):
+#             return None
+#         return self._volatility
+#
+#     def set_volatility(self, std_fn : Callable):
+#         self._volatility = std_fn(self.prices)
 
 class Strategy:
-    def __init__(self, instruments : list[Instrument]):
-        self.instruments : list[Instrument] = instruments
+    """
+    Strategy class is an abstract class that defines the structure of a strategy. Strategies are composed of a list of Insturments, a list of Callable rules, and a list of scalars. The rules are applied to the instruments to generate a DataFrame of positions. The scalars are applied to the positions to generate the final positions DataFrame.
+    """
+    def __init__(self, risk_target : float, capital : float):
+        self.instruments : list[Instrument] = []
+        self._risk_target = risk_target
+        self._capital = capital
         self.rules : list[Callable] = []
         self.scalars : list[float] = []
 
@@ -40,40 +54,69 @@ class Strategy:
     def positions(self, value):
         self._positions = value
 
+    def fetch_data(self):
+        """
+        The Fetch data method is the a required initialization step within designing a strategy. This method is used to fetch the data for the instruments within the strategy. It is strategy specific and should be implemented by the user.
+        """
+        raise NotImplementedError("Fetch Data method not implemented")
+
 ### Example Strategy
 
 class TrendFollowing(Strategy):
-    def __init__(self, instruments : list[Instrument], risk_target : float, capital : float):
-        super().__init__(instruments)
+    def __init__(self, instruments : list[Future], risk_target : float, capital : float):
+        super().__init__(risk_target=risk_target, capital=capital)
+        # Overload the instruments
+        self.instruments: list[Future] = instruments
         self.rules = [
             partial(risk_parity, std_fn=normal_std, risk_target=risk_target),
             partial(trend_signals, std_fn=normal_std),
             partial(equal_weight)
         ]
         self.scalars = [capital]
+        self.fetch_data() # Fetch the data for the instruments
 
-class TestStrategy(Strategy):
-    def __init__(self, instruments : list[Instrument]):
-        super().__init__(instruments)
-        self.rules = [
-            partial(equal_weight)
-        ]
-        self.scalars = [2.0]
-
-
-#! Remove above
+    def fetch_data(self) -> None:
+        """
+        The Fetch data method for the Trend Following strategy is requires the following instrument specific data:
+        1. Prices(Open, High, Low, Close, Volume)
+        2. Backadjusted Prices (Close)
+        """
+        instrument: Future
+        for instrument in self.instruments:
+            # Load the front calendar contract data with a daily aggregation
+            instrument.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
+        return
 
 ### Standard Deviation Function
-def normal_std(prices : pd.Series) -> float:
-    return prices.rolling(window=100).std()
+def normal_std(prices : pd.Series) -> pd.Series:
+    """
+    Normal Standard Deviation calculates the standard deviation of the prices using a rolling window of 100 days.
+    Args:
+    prices (pd.Series): A series of prices
+
+    Returns:
+    pd.Series: A series of standard deviations
+    """
+    # Check if the index is a datetime index
+    if not isinstance(prices.index, pd.DatetimeIndex):
+        raise ValueError("Index must be a datetime index")
+    std: pd.Series = pd.Series(prices.rolling(window=100).std())
+    std.dropna(inplace=True)
+    assert not std.empty, "Standard Deviation is empty"
+    assert isinstance(std.index, pd.DatetimeIndex), "Index must be a datetime index"
+    return std
 
 ### Rules
 
-def risk_parity(instruments : list[Instrument], std_fn : Callable, risk_target  : float) -> pd.DataFrame:
-    series_lst : list[pd.Series] = [(risk_target / std_fn(instrument.prices)).rename(instrument.name) for instrument in instruments]
+def risk_parity(instruments : list[Future], std_fn : Callable, risk_target  : float) -> pd.DataFrame:
+    instrument: Future
+    series_list: list[pd.Series] = []
+    for instrument in instruments:
+        # WARN: Currently uses the front contract close prices WITHOUT backadjusting for gaps
+        series_list.append(risk_target / std_fn(instrument.get_front().get_close().rename(instrument.get_symbol())))
 
     df = pd.DataFrame()
-    for series in series_lst:
+    for series in series_list:
         if df.empty:
             df = series.to_frame()
         else:
@@ -81,13 +124,14 @@ def risk_parity(instruments : list[Instrument], std_fn : Callable, risk_target  
 
     return df
 
-def equal_weight(instruments : list[Instrument]) -> pd.DataFrame:
+def equal_weight(instruments : list[Future]) -> pd.DataFrame:
     df = pd.DataFrame()
+    instrument: Future
     for instrument in instruments:
         if df.empty:
-            df = instrument.prices.to_frame().rename(columns={'Close': instrument.name})
+            df = instrument.get_front().get_close().to_frame().rename(columns={'Close': instrument.name})
         else:
-            df = df.join(instrument.prices.to_frame().rename(columns={'Close': instrument.name}), how='outer')
+            df = df.join(instrument.get_front().get_close().to_frame().rename(columns={'Close': instrument.name}), how='outer')
 
     df.ffill(inplace=True)
 
@@ -98,8 +142,9 @@ def equal_weight(instruments : list[Instrument]) -> pd.DataFrame:
 
     return weights
 
-def trend_signals(instruments : list[Instrument], std_fn : Callable) -> pd.DataFrame:
+def trend_signals(instruments : list[Future], std_fn : Callable) -> pd.DataFrame:
     forecasts : list[pd.Series] = []
+    instrument: Future
     for instrument in instruments:
         trend = (
             pd.DataFrame()
@@ -110,14 +155,13 @@ def trend_signals(instruments : list[Instrument], std_fn : Callable) -> pd.DataF
         # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = (
-                instrument.prices.ewm(span=t1, min_periods=2, adjust=False).mean()
-                - instrument.prices.ewm(span=t2, min_periods=2, adjust=False).mean()
+                instrument.get_front().get_backadjusted().ewm(span=t1, min_periods=2, adjust=False).mean() -
+                instrument.get_front().get_backadjusted().ewm(span=t2, min_periods=2, adjust=False).mean()
             )
 
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= (
-                std_fn(instrument.prices) * instrument.prices)
+            trend[f"{t1}-{t2}"] /= std_fn(instrument.get_front().get_backadjusted().rename(instrument.get_symbol()))
 
         # Scale the crossovers by the absolute mean of all previous crossovers
         scalar_dict = {}
@@ -158,18 +202,12 @@ def trend_signals(instruments : list[Instrument], std_fn : Callable) -> pd.DataF
 
 ### Main Function (Implementation, Specific to the Example)
 
-def main(SP500, NASDAQ):
-    trend_following = TrendFollowing([SP500, NASDAQ], 0.5, 100_000)
-    # print(trend_following.positions)
+def main():
+    instruments: list[Future] = [Future(symbol="ES", dataset="CME", multiplier=50)]
+    trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
+    positions: pd.DataFrame = trend_following.positions
+    print(positions)
 
-    # trend_carry = TrendCarry([SP500, NASDAQ], 0.5, 100_000)
-
-def get_price_data(ticker : str, period : str) -> pd.Series:
-    import yfinance
-    return yfinance.download(tickers=ticker, period=period)['Close']
 
 if __name__ == '__main__':
-    SP500 = Instrument(get_price_data('^GSPC', '1y'), 'SP500')
-    NASDAQ = Instrument(get_price_data('^IXIC', '5y'), 'NASDAQ')
-
-    main(SP500, NASDAQ)
+    main()

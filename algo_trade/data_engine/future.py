@@ -565,6 +565,19 @@ class Instrument(ABC):
         """
         return self.symbol
 
+    @property
+    def name(self) -> str:
+        """
+        Returns the name of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The name of the instrument
+        """
+        return self.symbol
+
     def get_dataset(self) -> str:
         """
         Returns the dataset of the instrument
