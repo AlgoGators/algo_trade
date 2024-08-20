@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
-from enum import StrEnum 
+from enum import StrEnum
 from pathlib import Path
 
 import databento as db
@@ -363,7 +363,13 @@ class Bar:
         """
         if self.definitions.empty or self.data.empty:
             raise ValueError("Data and Definitions are not present")
-        elif self.open.empty or self.high.empty or self.low.empty or self.close.empty or self.volume.empty:
+        elif (
+            self.open.empty
+            or self.high.empty
+            or self.low.empty
+            or self.close.empty
+            or self.volume.empty
+        ):
             raise ValueError("Open, High, Low, Close, or Volume is empty")
         elif self.backadjusted.empty:
             # Perform backadjustment on close prices and return the backadjusted series
@@ -373,11 +379,17 @@ class Bar:
             cumm_adj: float = 0.0
             adj: float = 0.0
             for i in range(1, len(backadjusted)):
-                if backadjusted.iloc[i]["instrument_id"] != backadjusted.iloc[i - 1]["instrument_id"]:
-                    adj = backadjusted["close"].iloc[i - 1] - backadjusted["close"].iloc[i]
+                if (
+                    backadjusted.iloc[i]["instrument_id"]
+                    != backadjusted.iloc[i - 1]["instrument_id"]
+                ):
+                    adj = (
+                        backadjusted["close"].iloc[i - 1]
+                        - backadjusted["close"].iloc[i]
+                    )
                     cumm_adj += adj
                     # Adjust all following prices with slicing
-                    backadjusted.loc[backadjusted.index[i]:, "close"] += adj
+                    backadjusted.loc[backadjusted.index[i] :, "close"] += adj
 
             backadjusted.sort_index(ascending=True, inplace=True)
             self.backadjusted = pd.Series(backadjusted["close"])
@@ -395,17 +407,22 @@ class Bar:
         """
 
         # Assert all instrument_ids in data are within definitions
-        assert data["instrument_id"].isin(definitions["instrument_id"]).all(bool_only=True)
+        assert (
+            data["instrument_id"].isin(definitions["instrument_id"]).all(bool_only=True)
+        )
 
         # We need to index our definitons by the instrument_id
-        exp_df: pd.DataFrame = definitions.reset_index()[["expiration", "instrument_id"]].set_index("instrument_id").drop_duplicates()
+        exp_df: pd.DataFrame = (
+            definitions.reset_index()[["expiration", "instrument_id"]]
+            .set_index("instrument_id")
+            .drop_duplicates()
+        )
 
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
         data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
         expirations: pd.Series = data["expiration"]
         return expirations
-
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -467,8 +484,12 @@ class Bar:
                         client=client
                     )
                     # Combine new data with existing data and skip duplicates if they exist based on index
-                    self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates()
-                    self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates()
+                    self.data = pd.concat(
+                        [self.data, new_data.to_df()]
+                    ).drop_duplicates()
+                    self.definitions = pd.concat(
+                        [self.definitions, new_definitions.to_df()]
+                    ).drop_duplicates()
                 except Exception as e:
                     print(f"Error: {e}")
 
@@ -640,7 +661,6 @@ class Future(Instrument):
         self.__back__: Bar
         self.__price__: pd.Series
 
-
     @property
     def front(self) -> Bar:
         """
@@ -731,7 +751,7 @@ class Future(Instrument):
         None
         """
         del self.__price__
-    
+
     def __str__(self) -> str:
         return f"Future: {self.symbol} - {self.dataset}"
 
@@ -783,7 +803,6 @@ class Future(Instrument):
         else:
             return self.back
 
-
     def add_data(
         self,
         schema: Agg,
@@ -803,12 +822,18 @@ class Future(Instrument):
         Returns:
         None
         """
-        bar: Bar = Bar(instrument=self.symbol, dataset=DATASET.from_str(self.dataset), schema=schema)
+        bar: Bar = Bar(
+            instrument=self.symbol,
+            dataset=DATASET.from_str(self.dataset),
+            schema=schema,
+        )
 
         if name is None:
             name = f"{bar.get_instrument()}-{roll_type}-{contract_type}"
 
-        bar.construct(client=self.client, roll_type=roll_type, contract_type=contract_type)
+        bar.construct(
+            client=self.client, roll_type=roll_type, contract_type=contract_type
+        )
 
         self.bars[name] = bar
         if contract_type == ContractType.FRONT:
@@ -822,8 +847,8 @@ if __name__ == "__main__":
     # Testing the Bar class
     # Set sys.path to the base directory
     import sys
+
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     future: Future = Future("ES", "CME")
     future.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
     exp = future.get_front().expiration
-
