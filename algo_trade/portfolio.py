@@ -5,7 +5,7 @@ import pandas as pd
 import toml
 
 # Internal
-from .strategy import Strategy, TrendFollowing, TestStrategy
+from .strategy import Strategy, TrendFollowing
 from .future import Instrument, Future
 from .pnl import PnL
 from dyn_opt.dyn_opt import aggregator

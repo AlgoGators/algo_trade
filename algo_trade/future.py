@@ -19,6 +19,7 @@ config: Dict[str, Any] = toml.load(config_path)
 # TODO: Add more vendor catalogs such as Norgate
 class CATALOG(StrEnum):
     DATABENTO = f"data/catalog/databento/"
+    NORGATE = f"data/catalog/norgate/"
 
 
 class ASSET(StrEnum):
@@ -83,6 +84,9 @@ class RollType(StrEnum):
 class ContractType(StrEnum):
     FRONT = "0"
     BACK = "1"
+    THIRD = "2"
+    FOURTH = "3"
+    FIFTH = "4"
 
     def __str__(self):
         return self.value
