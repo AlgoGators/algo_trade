@@ -139,14 +139,14 @@ class Contract:
     ):
         self.data: pd.DataFrame
         self.definitions: pd.DataFrame
-        self.timestamp: pd.Index
-        self.open: pd.Series
-        self.high: pd.Series
-        self.low: pd.Series
-        self.close: pd.Series
-        self.volume: pd.Series
-        self.expiration: pd.Series
-        self.instrument_id: pd.Series
+        self._timestamp: pd.Index
+        self._open: pd.Series
+        self._high: pd.Series
+        self._low: pd.Series
+        self._close: pd.Series
+        self._volume: pd.Series
+        self._expiration: pd.Series
+        self._instrument_id: pd.Series
         self.backadjusted: pd.Series = pd.Series()
         self.instrument: str = instrument
         self.dataset: DATASET = dataset
@@ -158,6 +158,217 @@ class Contract:
 
     def __repr__(self) -> str:
         return f"Bar: {self.instrument} - {self.dataset} - {self.schema}"
+
+    @property
+    def timestamp(self) -> pd.Index:
+        """
+        Returns the timestamp of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Index: The timestamp of the bar as a pandas index
+        """
+        if self._timestamp.empty:
+            raise ValueError("Timestamp is empty")
+        return self._timestamp
+
+    @timestamp.setter
+    def timestamp(self, value: pd.Index) -> None:
+        """
+        Sets the timestamp of the bar as a series
+
+        Args:
+        value: pd.Index - The timestamp of the bar as a pandas index
+
+        Returns:
+        None
+        """
+        self._timestamp = value
+
+    @property
+    def open(self) -> pd.Series:
+        """
+        Returns the open price of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The open price of the bar as a series
+        """
+        if self._open.empty:
+            raise ValueError("Open is empty")
+        return self._open
+
+    @open.setter
+    def open(self, value: pd.Series) -> None:
+        """
+        Sets the open price of the bar as a series
+
+        Args:
+        value: pd.Series - The open price of the bar as a series
+
+        Returns:
+        None
+        """
+        self._open = value
+
+    @property
+    def high(self) -> pd.Series:
+        """
+        Returns the high price of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The high price of the bar as a series
+        """
+        if self._high.empty:
+            raise ValueError("High is empty")
+        return self._high
+
+    @high.setter
+    def high(self, value: pd.Series) -> None:
+        """
+        Sets the high price of the bar as a series
+
+        Args:
+        value: pd.Series - The high price of the bar as a series
+
+        Returns:
+        None
+        """
+        self._high = value
+
+    @property
+    def low(self) -> pd.Series:
+        """
+        Returns the low price of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The low price of the bar as a series
+        """
+        if self._low.empty:
+            raise ValueError("Low is empty")
+        return self._low
+
+    @low.setter
+    def low(self, value: pd.Series) -> None:
+        """
+        Sets the low price of the bar as a series
+
+        Args:
+        value: pd.Series - The low price of the bar as a series
+
+        Returns:
+        None
+        """
+        self._low = value
+
+    @property
+    def close(self) -> pd.Series:
+        """
+        Returns the close price of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The close price of the bar as a series
+        """
+        if self._close.empty:
+            raise ValueError("Close is empty")
+        return self._close
+
+    @close.setter
+    def close(self, value: pd.Series) -> None:
+        """
+        Sets the close price of the bar as a series
+
+        Args:
+        value: pd.Series - The close price of the bar as a series
+
+        Returns:
+        None
+        """
+        self._close = value
+
+    @property
+    def volume(self) -> pd.Series:
+        """
+        Returns the volume of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The volume of the bar as a series
+        """
+        if self._volume.empty:
+            raise ValueError("Volume is empty")
+        return self._volume
+
+    @volume.setter
+    def volume(self, value: pd.Series) -> None:
+        """
+        Sets the volume of the bar as a series
+
+        Args:
+        value: pd.Series - The volume of the bar as a series
+
+        Returns:
+        None
+        """
+        self._volume = value
+
+    @property
+    def expiration(self) -> pd.Series:
+        """
+        Returns the expiration of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The expiration of the bar as a series
+        """
+        if self._expiration.empty:
+            raise ValueError("Expiration is empty")
+        return self._expiration
+
+    @expiration.setter
+    def expiration(self, value: pd.Series) -> None:
+        """
+        Sets the expiration of the bar as a series
+
+        Args:
+        value: pd.Series - The expiration of the bar as a series
+
+        Returns:
+        None
+        """
+        self._expiration = value
+
+    @property
+    def instrument_id(self) -> pd.Series:
+        """
+        Returns the instrument_id of the bar as a series
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The instrument_id of the bar as a series
+        """
+        if self._instrument_id.empty:
+            raise ValueError("Instrument ID is empty")
+        return self._instrument_id
 
     def get_instrument(self) -> str:
         """
@@ -175,9 +386,6 @@ class Contract:
         """
         Returns the dataset of the bar
 
-        Args:
-        None
-
         Returns:
         DATASET: The dataset of the bar
         """
@@ -186,9 +394,6 @@ class Contract:
     def get_schema(self) -> Agg:
         """
         Returns the schema of the bar
-
-        Args:
-        None
 
         Returns:
         Schema.BAR: The schema of the bar
@@ -199,9 +404,6 @@ class Contract:
         """
         Returns the catalog location of the existing instrument data
 
-        Args:
-        None
-
         Returns:
         CATALOG: The catalog location of the existing instrument data
         """
@@ -211,9 +413,6 @@ class Contract:
         """
         Returns the timestamp of the bar as a series
 
-        Args:
-        None
-
         Returns:
         pd.Index: The timestamp of the bar as a pandas index
         """
@@ -222,87 +421,21 @@ class Contract:
         return self.timestamp
 
     def get_open(self) -> pd.Series:
-        """
-        Returns the open price of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The open price of the bar as a series
-        """
-        if self.open.empty:
-            raise ValueError("Open is empty")
         return self.open
 
     def get_high(self) -> pd.Series:
-        """
-        Returns the high price of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The high price of the bar as a series
-        """
-        if self.high.empty:
-            raise ValueError("High is empty")
         return self.high
 
     def get_low(self) -> pd.Series:
-        """
-        Returns the low price of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The low price of the bar as a series
-        """
-        if self.low.empty:
-            raise ValueError("Low is empty")
         return self.low
 
     def get_close(self) -> pd.Series:
-        """
-        Returns the close price of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The close price of the bar as a series
-        """
-        if self.close.empty:
-            raise ValueError("Close is empty")
         return self.close
 
     def get_volume(self) -> pd.Series:
-        """
-        Returns the volume of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The volume of the bar as a series
-        """
-        if self.volume.empty:
-            raise ValueError("Volume is empty")
         return self.volume
 
     def get_expiration(self) -> pd.Series:
-        """
-        Returns the expiration of the bar as a series
-
-        Args:
-        None
-
-        Returns:
-        pd.Series: The expiration of the bar as a series
-        """
-        if self.expiration.empty:
-            raise ValueError("Expiration is empty")
         return self.expiration
 
     def get_instrument_id(self) -> pd.Series:
@@ -374,7 +507,7 @@ class Contract:
         elif self.backadjusted.empty:
             # Perform backadjustment on close prices and return the backadjusted series
             # TODO: Check logic for backadjustment
-            backadjusted: pd.DataFrame = self.data.copy()[["close", "instrument_id"]]
+            backadjusted: pd.DataFrame = pd.DataFrame(self.data.copy()[["close", "instrument_id"]])
             backadjusted.sort_index(ascending=False, inplace=True)
             cumm_adj: float = 0.0
             adj: float = 0.0
@@ -464,6 +597,7 @@ class Contract:
 
             # Check if the data and definitions are up to date
 
+            # TODO: Needs to be shifted by one day to account for historical vs intraday data availability but good for debugging purposes
             if data_end != end or definitions_end != end:
                 print(
                     "Data and Definitions are not up to date for {self.instrument_id}"
@@ -567,12 +701,38 @@ class Instrument(ABC):
     """
 
     def __init__(self, symbol: str, dataset: str):
-        self.symbol = symbol
-        self.dataset = dataset
+        self._symbol = symbol
+        self._dataset = dataset
         self.client: db.Historical = db.Historical(
             config["databento"]["api_historical"]
         )
         self.asset: ASSET
+
+    @property
+    def symbol(self) -> str:
+        """
+        Returns the symbol of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The symbol of the instrument
+        """
+        return self._symbol
+
+    @property
+    def dataset(self) -> str:
+        """
+        Returns the dataset of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The dataset of the instrument
+        """
+        return self._dataset
 
     def get_symbol(self) -> str:
         """
@@ -645,11 +805,13 @@ class Future(Instrument):
     Attributes:
     symbol: str - The symbol of the future instrument
     dataset: str - The dataset of the future instrument
-    data: dict[str, Data] - The data of the future instrument
+    contracts: dict[str, Contract] - The contracts of the future instrument
+    front: Contract - The front month contract of the future instrument
+    back: Contract - The back month contract of the future instrument
 
 
     Methods:
-    -   add_bar(bar: Bar, roll_type: RollType, contract_type: ContractType, name: Optional[str] = None) -> None - Adds data to the future instrument
+    -   add_contract(contract: Contract, contract_type: ContractType) -> None - Adds a contract to the future instrument
     """
 
     def __init__(self, symbol: str, dataset: str, multiplier: float = 1.0):
@@ -760,48 +922,24 @@ class Future(Instrument):
 
     def get_contracts(self) -> dict[str, Contract]:
         """
-        Returns the bars of the future instrument
+        Returns the contracts of the future instrument
 
         Args:
         None
 
         Returns:
-        dict[str, Bar]: The bars of the future instrument
+        dict[str, Contract]: The contracts of the future instrument
         """
         if self.contracts == {}:
-            raise ValueError("Bars are empty")
+            raise ValueError("No Contracts are present")
         else:
             return self.contracts
 
     def get_front(self) -> Contract:
-        """
-        Returns the front month contract of the future instrument
-
-        Args:
-        None
-
-        Returns:
-        Bar: The front month contract of the future instrument
-        """
-        if self.front is None:
-            raise ValueError("Front is empty")
-        else:
-            return self.front
+        return self.front
 
     def get_back(self) -> Contract:
-        """
-        Returns the back month contract of the future instrument
-
-        Args:
-        None
-
-        Returns:
-        Bar: The back month contract of the future instrument
-        """
-        if self.back is None:
-            raise ValueError("Back is empty")
-        else:
-            return self.back
+        return self.back
 
     def add_data(
         self,
