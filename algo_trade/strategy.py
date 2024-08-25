@@ -5,7 +5,9 @@ from abc import ABC
 from typing import Callable
 from functools import partial
 
-from instrument import Future, Instrument, RollType, ContractType, Agg
+from algo_trade.instrument import Future, Instrument, RollType, ContractType, Agg
+
+DAYS_IN_YEAR = 256
 
 class Strategy(ABC):
     """
@@ -24,7 +26,7 @@ class Strategy(ABC):
         if not hasattr(self, "_positions"):
             self._positions = pd.DataFrame()
             for rule in self.rules:
-                df = rule(self.instruments)
+                df : pd.DataFrame = rule(self.instruments)
                 self._positions = df if self._positions.empty else self._positions * df
 
             scalar = np.prod(self.scalars)
@@ -66,15 +68,8 @@ class TrendFollowing(Strategy):
         1. Prices(Open, High, Low, Close, Volume)
         2. Backadjusted Prices (Close)
         """
-        instrument: Future
-        for instrument in self.instruments:
-            # Load the front calendar contract data with a daily aggregation
-            instrument.add_data(
-                schema=Agg.DAILY,
-                roll_type=RollType.CALENDAR,
-                contract_type=ContractType.FRONT,
-            )
-        return
+        # Load the front calendar contract data with a daily aggregation
+        [instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT) for instrument in self.instruments]
 
 
 def normal_std(prices: pd.Series) -> pd.Series:
@@ -86,14 +81,8 @@ def normal_std(prices: pd.Series) -> pd.Series:
     Returns:
     pd.Series: A series of standard deviations
     """
-    # Check if the index is a datetime index
-    if not isinstance(prices.index, pd.DatetimeIndex):
-        raise ValueError("Index must be a datetime index")
-    std: pd.Series = pd.Series(prices.rolling(window=100).std())
-    std.dropna(inplace=True)
-    assert not std.empty, "Standard Deviation is empty"
-    assert isinstance(std.index, pd.DatetimeIndex), "Index must be a datetime index"
-    return std
+
+    return pd.Series(prices.pct_change().rolling(window=100).std())
 
 
 ### Rules
@@ -106,7 +95,7 @@ def risk_parity(instruments: list[Future], std_fn: Callable, risk_target: float)
         # WARN: Currently uses the front contract close prices WITHOUT backadjusting for gaps
         series_list.append(
             risk_target
-            / std_fn(instrument.get_front().get_close().rename(instrument.get_symbol()))
+            / (std_fn(instrument.front.get_close().rename(instrument.get_symbol())) * DAYS_IN_YEAR ** 0.5)
         )
 
     df = pd.DataFrame()
@@ -124,17 +113,17 @@ def equal_weight(instruments: list[Future]) -> pd.DataFrame:
     for instrument in instruments:
         if df.empty:
             df = (
-                instrument.get_front()
+                instrument.front
                 .get_close()
+                .rename(instrument.name)
                 .to_frame()
-                .rename(columns={"Close": instrument.name})
             )
         else:
             df = df.join(
-                instrument.get_front()
+                instrument.front
                 .get_close()
-                .to_frame()
-                .rename(columns={"Close": instrument.name}),
+                .rename(instrument.name)
+                .to_frame(),
                 how="outer",
             )
 
@@ -159,11 +148,11 @@ def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
         # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = (
-                instrument.get_front()
+                instrument.front
                 .get_backadjusted()
                 .ewm(span=t1, min_periods=2, adjust=False)
                 .mean()
-                - instrument.get_front()
+                - instrument.front
                 .get_backadjusted()
                 .ewm(span=t2, min_periods=2, adjust=False)
                 .mean()
@@ -172,7 +161,7 @@ def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] /= std_fn(
-                instrument.get_front()
+                instrument.front
                 .get_backadjusted()
                 .rename(instrument.get_symbol())
             )
@@ -189,19 +178,19 @@ def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"].clip(-20, 20)
 
-        trend["Forecast"] = 0.0
+        trend.Forecast = 0.0
 
         n = len(crossovers)
         weights = {64: 1 / n, 32: 1 / n, 16: 1 / n, 8: 1 / n, 4: 1 / n, 2: 1 / n}
 
         for t1, t2 in crossovers:
-            trend["Forecast"] += trend[f"{t1}-{t2}"] * weights[t1]
+            trend.Forecast += trend[f"{t1}-{t2}"] * weights[t1]
 
         fdm = 1.35
-        trend["Forecast"] = trend["Forecast"] * fdm
+        trend.Forecast = trend.Forecast * fdm
 
         # Clip the final forecast to -20, 20
-        trend["Forecast"] = trend["Forecast"].clip(-20, 20)
+        trend.Forecast = trend.Forecast.clip(-20, 20)
 
         forecasts.append((trend.Forecast / 10).rename(instrument.name))
 
