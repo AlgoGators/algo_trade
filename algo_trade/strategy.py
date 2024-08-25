@@ -4,27 +4,7 @@ import numpy as np
 from typing import Callable
 from functools import partial
 
-from future import Future, Instrument, RollType, ContractType, Agg
-
-### Abstract Classes
-
-# class Instrument:
-#     def __init__(self, prices : pd.Series, name : str, multiplier : Optional[float] = None):
-#         self.dates = prices.index
-#         self.prices = prices
-#         self.name = name
-#         self.multiplier = multiplier
-#
-#     # Vol is Work in Progress
-#     @property
-#     def volatility(self) -> float:
-#         if not hasattr(self, '_volatility'):
-#             return None
-#         return self._volatility
-#
-#     def set_volatility(self, std_fn : Callable):
-#         self._volatility = std_fn(self.prices)
-
+from instrument import Future, Instrument, RollType, ContractType, Agg
 
 class Strategy:
     """
@@ -118,10 +98,8 @@ def normal_std(prices: pd.Series) -> pd.Series:
 ### Rules
 
 
-def risk_parity(
-    instruments: list[Future], std_fn: Callable, risk_target: float
-) -> pd.DataFrame:
-    instrument: Future
+def risk_parity(instruments: list[Instrument], std_fn: Callable, risk_target: float) -> pd.DataFrame:
+    instrument: Instrument
     series_list: list[pd.Series] = []
     for instrument in instruments:
         # WARN: Currently uses the front contract close prices WITHOUT backadjusting for gaps
@@ -138,7 +116,6 @@ def risk_parity(
             df = df.join(series.to_frame(), how="outer")
 
     return df
-
 
 def equal_weight(instruments: list[Future]) -> pd.DataFrame:
     df = pd.DataFrame()
@@ -241,7 +218,9 @@ def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
 
 
 def main():
-    instruments: list[Future] = [Future(symbol="ES", dataset="CME", multiplier=50)]
+    instruments: list[Future] = [
+        Future(symbol="ES", dataset="CME", multiplier=5)
+    ]
     trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
     positions: pd.DataFrame = trend_following.positions
     print(positions)

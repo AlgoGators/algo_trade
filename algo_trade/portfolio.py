@@ -6,9 +6,9 @@ import toml
 
 # Internal
 from .strategy import Strategy, TrendFollowing
-from .future import Instrument, Future
+from instrument import Instrument
 from .pnl import PnL
-from dyn_opt.dyn_opt import aggregator
+from risk_management.dyn_opt.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -54,21 +54,12 @@ class Portfolio:
     def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)        
 
 ### Example Portfolio
-class TrendCarry(Portfolio):
+class Trend(Portfolio):
     def __init__(self, instruments : list[Instrument], risk_target : float, capital : float):
         self.strategies = [
-            (0.6, TrendFollowing(instruments, risk_target, capital))
-        ]
-        super().__init__(instruments, self.strategies)
-
-
-class TestPortfolio(Portfolio):
-    def __init__(self, instruments : list[Instrument], capital : float):
-        self.strategies = [
-            (1.0, TestStrategy(instruments))
+            (1.0, TrendFollowing(instruments, risk_target, capital))
         ]
         super().__init__(instruments, self.strategies, capital)
-
 
 def dynamic_optimization(portfolio : Portfolio):
     instruments = portfolio.instruments

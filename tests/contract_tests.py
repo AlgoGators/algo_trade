@@ -11,7 +11,7 @@ Functions:
 Author: Cole Rottenberg
 Organization: AlgoGators Investment Fund
 """
-from algo_trade.future import Contract, Agg, ContractType, RollType, CATALOG, DATASET
+from algo_trade.instrument import Contract, Agg, ContractType, RollType, CATALOG, DATASET
 import pytest
 import databento as dbn
 import toml
