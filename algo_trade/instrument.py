@@ -126,6 +126,19 @@ class Instrument(ABC):
         Tuple[str, str]: The symbol and dataset of the instrument
         """
         return (self.symbol, self.dataset)
+    
+    @property
+    def price(self) -> pd.Series:
+        """
+        Returns the prices of the instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The prices of the instrument
+        """
+        raise NotImplementedError()
 
 
 class Future(Instrument):
@@ -308,7 +321,7 @@ class Future(Instrument):
         self.contracts[name] = contract
         if contract_type == ContractType.FRONT:
             self.front = contract
-            self.price = contract.get_close()
+            self.price = contract.get_backadjusted()
         elif contract_type == ContractType.BACK:
             self.back = contract
 

@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 import pandas as pd
 import toml
+from abc import ABC
 
 # Internal
 from .strategy import Strategy, TrendFollowing
@@ -17,7 +18,7 @@ config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
 
-class Portfolio:
+class Portfolio(ABC):
     def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
         self.instruments = instruments
         self.weighted_strategies = weighted_strategies

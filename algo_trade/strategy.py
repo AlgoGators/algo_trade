@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
+from abc import ABC
 
 from typing import Callable
 from functools import partial
 
 from instrument import Future, Instrument, RollType, ContractType, Agg
 
-class Strategy:
+class Strategy(ABC):
     """
     Strategy class is an abstract class that defines the structure of a strategy. Strategies are composed of a list of Insturments, a list of Callable rules, and a list of scalars. The rules are applied to the instruments to generate a DataFrame of positions. The scalars are applied to the positions to generate the final positions DataFrame.
     """
@@ -98,8 +99,8 @@ def normal_std(prices: pd.Series) -> pd.Series:
 ### Rules
 
 
-def risk_parity(instruments: list[Instrument], std_fn: Callable, risk_target: float) -> pd.DataFrame:
-    instrument: Instrument
+def risk_parity(instruments: list[Future], std_fn: Callable, risk_target: float) -> pd.DataFrame:
+    instrument: Future
     series_list: list[pd.Series] = []
     for instrument in instruments:
         # WARN: Currently uses the front contract close prices WITHOUT backadjusting for gaps
