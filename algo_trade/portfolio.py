@@ -7,9 +7,9 @@ from abc import ABC
 
 # Internal
 from .strategy import Strategy, TrendFollowing
-from instrument import Instrument
+from algo_trade.instrument import Instrument
 from .pnl import PnL
-from risk_management.dyn_opt.dyn_opt import aggregator
+from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
