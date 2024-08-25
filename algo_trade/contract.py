@@ -360,6 +360,19 @@ class Contract:
         if self._instrument_id.empty:
             raise ValueError("Instrument ID is empty")
         return self._instrument_id
+    
+    @instrument_id.setter
+    def instrument_id(self, value: pd.Series) -> None:
+        """
+        Sets the instrument_id of the bar as a series
+
+        Args:
+        value: pd.Series - The instrument_id of the bar as a series
+
+        Returns:
+        None
+        """
+        self._instrument_id = value
 
     def get_instrument(self) -> str:
         """
@@ -562,8 +575,6 @@ class Contract:
         Returns:
         None
         """
-        # TODO: Implement construct method
-
         data_path: Path = Path(
             f"{self.catalog}/{self.instrument}/{self.schema}/{roll_type}-{contract_type}-data.parquet"
         )
@@ -634,6 +645,8 @@ class Contract:
 
         else:
             print(f"Data and Definitions not present for {self.instrument}")
+            print(f"Attempting to retrieve data and definitions for {self.instrument}")
+            print(f"Creating data and definitions for {self.instrument} at {data_path}")
             # Submit a job request to retrieve the data and definitions
             symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
             # TODO: Implement job request submission

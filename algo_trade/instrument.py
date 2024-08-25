@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
-from contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
+from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
 
 import databento as db
 import pandas as pd
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     # Set sys.path to the base directory
     import sys
 
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     future: Future = Future("ES", "CME")
     future.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
     exp = future.get_front().expiration
