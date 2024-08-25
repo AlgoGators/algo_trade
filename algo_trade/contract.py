@@ -602,7 +602,7 @@ class Contract:
             # TODO: Needs to be shifted by one day to account for historical vs intraday data availability but good for debugging purposes
             if data_end != end or definitions_end != end:
                 print(
-                    "Data and Definitions are not up to date for {self.instrument_id}"
+                    f"Data and Definitions are not up to date for {self.instrument}"
                 )
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
