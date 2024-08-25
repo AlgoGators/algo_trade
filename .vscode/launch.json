@@ -6,14 +6,14 @@
   "configurations": [
     {
       "name": "Python Debugger: Module",
-      "type": "debugpy",
+      "type": "python",
       "request": "launch",
       "module": "algo_trade"
     },
     {
       // Launch the current file but under the module path using the -m flag
       "name": "Python: Current File",
-      "type": "debugpy",
+      "type": "python",
       "request": "launch",
       "program": "${file}",
       "cwd": "${workspaceFolder}",
