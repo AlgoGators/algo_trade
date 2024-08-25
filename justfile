@@ -13,7 +13,7 @@ update:
   poetry update
 
 test:
-  poetry run python -m pytest
+  poetry run python -m pytest tests -v
 
 black:
   poetry run black algo_trade/data_engine
