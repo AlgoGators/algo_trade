@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
 from abc import ABC
+from typing import Self, Optional
 
 from algo_trade.instrument import Instrument, Future
+
+DAYS_IN_YEAR = 256
 
 class _utils:
     def ffill_zero(df: pd.DataFrame) -> pd.DataFrame:
@@ -21,6 +24,52 @@ class _utils:
 
         return df
 
+class StandardDeviation(pd.DataFrame):
+    def __init__(self, data : pd.DataFrame = None) -> None:
+        super().__init__(data)
+        self.__is_annualized = False
+
+    def annualize(self, inplace=False) -> Optional[Self]:
+        if self.__is_annualized:
+            return self
+
+        factor : float = DAYS_IN_YEAR ** 0.5
+
+        if inplace:
+            self *= factor
+            self.__is_annualized = True
+            return None
+
+        new = StandardDeviation(self)
+        new.annualize(inplace=True)
+        return new
+
+    def to_variance(self) -> 'Variance':
+        return Variance(self ** 2)
+
+class Variance(pd.DataFrame):
+    def __init__(self, data : pd.DataFrame = None) -> None:
+        super().__init__(data)
+        self.__is_annualized = False
+
+    def annualize(self, inplace=False) -> Optional[Self]:
+        if self.__is_annualized:
+            return self
+
+        factor : float = DAYS_IN_YEAR
+
+        if inplace:
+            self *= factor
+            self.__is_annualized = True
+            return None
+
+        new = Variance(self)
+        new = new.annualize(inplace=True)
+        return new
+    
+    def to_standard_deviation(self) -> 'StandardDeviation':
+        return StandardDeviation(self ** 0.5)
+
 class RiskMeasure(ABC):
     def __init__(self) -> None:
         pass
@@ -31,7 +80,7 @@ class RiskMeasure(ABC):
     def get_product_returns(self) -> pd.DataFrame:
         raise NotImplementedError("Method not implemented")
 
-    def get_var(self) -> pd.DataFrame:
+    def get_var(self) -> Variance:
         raise NotImplementedError("Method not implemented")
 
     def get_cov(self) -> pd.DataFrame:
@@ -52,7 +101,7 @@ class GARCH(RiskMeasure):
 
         self.__returns = pd.DataFrame()
         self.__product_returns = pd.DataFrame()
-        self.__var = pd.DataFrame()
+        self.__var = Variance()
         self.__cov = pd.DataFrame()
 
     def get_returns(self) -> pd.DataFrame:
@@ -101,14 +150,14 @@ class GARCH(RiskMeasure):
 
         return self.__product_returns
 
-    def get_var(self) -> pd.DataFrame:
+    def get_var(self) -> Variance:
         if not self.__var.empty:
-            return self.__var[self.minimum_observations:]
+            return self.__var
         
-        self.__var : pd.DataFrame = pd.DataFrame()
+        variance : pd.DataFrame = pd.DataFrame()
 
-        for i, instrument in enumerate(self.__returns.columns.tolist()):
-            squared_returns = self.__returns[instrument] ** 2
+        for i, instrument in enumerate(self.get_returns().columns.tolist()):
+            squared_returns = self.get_returns()[instrument] ** 2
             squared_returns.dropna(inplace=True)
 
             dates = squared_returns.index
@@ -123,14 +172,16 @@ class GARCH(RiskMeasure):
                 df.iloc[j] = squared_returns.iloc[j] * self.weights[0] + df.iloc[j-1] * self.weights[1] + LT_variances.iloc[j] * self.weights[2]
 
             if i == 0:
-                self.__var = df.to_frame(instrument)
+                variance = df.to_frame(instrument)
                 continue
 
-            self.__var = pd.merge(self.__var, df.to_frame(instrument), how='outer', left_index=True, right_index=True)
+            variance = pd.merge(variance, df.to_frame(instrument), how='outer', left_index=True, right_index=True)
 
-        self.__var = self.__var.interpolate() if self.fill else self.__var
+        variance = variance.interpolate() if self.fill else variance
 
-        return self.__var[self.minimum_observations:]
+        self.__var : Variance = Variance(variance[self.minimum_observations:])
+
+        return self.__var
 
     def get_cov(self) -> pd.DataFrame:
         if not self.__cov.empty:
