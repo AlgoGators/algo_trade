@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from abc import ABC
 
 from algo_trade.instrument import Instrument, Future
 
@@ -20,7 +21,23 @@ class _utils:
 
         return df
 
-class RiskMeasures:
+class RiskMeasure(ABC):
+    def __init__(self) -> None:
+        pass
+
+    def get_returns(self) -> pd.DataFrame:
+        raise NotImplementedError("Method not implemented")
+
+    def get_product_returns(self) -> pd.DataFrame:
+        raise NotImplementedError("Method not implemented")
+
+    def get_var(self) -> pd.DataFrame:
+        raise NotImplementedError("Method not implemented")
+
+    def get_cov(self) -> pd.DataFrame:
+        raise NotImplementedError("Method not implemented")
+
+class GARCH(RiskMeasure):
     def __init__(
         self,
         instruments : list[Instrument],

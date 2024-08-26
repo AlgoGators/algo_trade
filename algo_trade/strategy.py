@@ -6,6 +6,7 @@ from typing import Callable
 from functools import partial
 
 from algo_trade.instrument import Future, Instrument, RollType, ContractType, Agg
+from algo_trade.risk_measures import RiskMeasure, GARCH
 
 DAYS_IN_YEAR = 256
 
@@ -211,9 +212,19 @@ def main():
     instruments: list[Future] = [
         Future(symbol="ES", dataset="CME", multiplier=5)
     ]
-    trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
-    positions: pd.DataFrame = trend_following.positions
-    print(positions)
+    [instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT) for instrument in instruments]
+    # trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
+    # positions: pd.DataFrame = trend_following.positions
+    # print(positions)
+    x = GARCH(
+        instruments=instruments,
+        weights=(0.01, 0.01, 0.98),
+        minimum_observations=100
+    )
+    print(x.get_returns())
+    print(x.get_product_returns())
+    print(x.get_var())
+    print(x.get_cov())
 
 
 if __name__ == "__main__":
