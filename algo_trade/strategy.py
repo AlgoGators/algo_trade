@@ -19,6 +19,7 @@ class Strategy(ABC):
         self.instruments: list[Instrument] = []
         self._risk_target = risk_target
         self._capital = capital
+        self.risk_object : RiskMeasure = RiskMeasure()
         self.rules: list[Callable] = []
         self.scalars: list[float] = []
 
@@ -27,7 +28,7 @@ class Strategy(ABC):
         if not hasattr(self, "_positions"):
             self._positions = pd.DataFrame()
             for rule in self.rules:
-                df : pd.DataFrame = rule(self.instruments)
+                df : pd.DataFrame = rule()
                 self._positions = df if self._positions.empty else self._positions * df
 
             scalar = np.prod(self.scalars)
@@ -55,12 +56,18 @@ class TrendFollowing(Strategy):
         super().__init__(risk_target=risk_target, capital=capital)
         # Overload the instruments
         self.instruments: list[Future] = instruments
+        self.risk_object = GARCH(
+            instruments=instruments,
+            weights=(0.01, 0.01, 0.98),
+            minimum_observations=100
+        )
         self.rules = [
-            partial(risk_parity, std_fn=normal_std, risk_target=risk_target),
-            partial(trend_signals, std_fn=normal_std),
-            partial(equal_weight),
+            partial(risk_parity, risk_object=self.risk_object, risk_target=risk_target),
+            partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
+            partial(equal_weight, instruments=instruments),
+            partial(capital_scaling, instruments=instruments, capital=capital)
         ]
-        self.scalars = [capital]
+        self.scalars = []
         self.fetch_data()  # Fetch the data for the instruments
 
     def fetch_data(self) -> None:
@@ -72,41 +79,34 @@ class TrendFollowing(Strategy):
         # Load the front calendar contract data with a daily aggregation
         [instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT) for instrument in self.instruments]
 
-
-def normal_std(prices: pd.Series) -> pd.Series:
-    """
-    Normal Standard Deviation calculates the standard deviation of the prices using a rolling window of 100 days.
-    Args:
-    prices (pd.Series): A series of prices
-
-    Returns:
-    pd.Series: A series of standard deviations
-    """
-
-    return pd.Series(prices.pct_change().rolling(window=100).std())
-
-
 ### Rules
 
-
-def risk_parity(instruments: list[Future], std_fn: Callable, risk_target: float) -> pd.DataFrame:
-    instrument: Future
-    series_list: list[pd.Series] = []
-    for instrument in instruments:
-        # WARN: Currently uses the front contract close prices WITHOUT backadjusting for gaps
-        series_list.append(
-            risk_target
-            / (std_fn(instrument.front.get_close().rename(instrument.get_symbol())) * DAYS_IN_YEAR ** 0.5)
-        )
-
+def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
     df = pd.DataFrame()
-    for series in series_list:
+    instrument: Future
+    for instrument in instruments:
         if df.empty:
-            df = series.to_frame()
+            df = (
+                instrument.front
+                .get_close()
+                .to_frame(instrument.name)
+            )
         else:
-            df = df.join(series.to_frame(), how="outer")
+            df = df.join(
+                instrument.front
+                .get_close()
+                .to_frame(instrument.name),
+                how="outer",
+            )
 
-    return df
+    df.ffill(inplace=True)
+
+    capital_weighting = capital / df
+
+    return capital_weighting
+
+def risk_parity(risk_object: RiskMeasure, risk_target: float) -> pd.DataFrame:
+    return risk_target / risk_object.get_var().to_standard_deviation().annualize()
 
 def equal_weight(instruments: list[Future]) -> pd.DataFrame:
     df = pd.DataFrame()
@@ -116,15 +116,13 @@ def equal_weight(instruments: list[Future]) -> pd.DataFrame:
             df = (
                 instrument.front
                 .get_close()
-                .rename(instrument.name)
-                .to_frame()
+                .to_frame(instrument.name)
             )
         else:
             df = df.join(
                 instrument.front
                 .get_close()
-                .rename(instrument.name)
-                .to_frame(),
+                .to_frame(instrument.name),
                 how="outer",
             )
 
@@ -138,7 +136,7 @@ def equal_weight(instruments: list[Future]) -> pd.DataFrame:
     return weights
 
 
-def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
+def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.DataFrame:
     forecasts: list[pd.Series] = []
     instrument: Future
     for instrument in instruments:
@@ -161,10 +159,13 @@ def trend_signals(instruments: list[Future], std_fn: Callable) -> pd.DataFrame:
 
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= std_fn(
-                instrument.front
-                .get_backadjusted()
-                .rename(instrument.get_symbol())
+            trend[f"{t1}-{t2}"] /= (
+                risk_object
+                .get_var()
+                .to_standard_deviation()
+                .annualize()
+                [instrument.get_symbol()]
+                * instrument.front.close
             )
 
         # Scale the crossovers by the absolute mean of all previous crossovers
@@ -212,19 +213,9 @@ def main():
     instruments: list[Future] = [
         Future(symbol="ES", dataset="CME", multiplier=5)
     ]
-    [instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT) for instrument in instruments]
-    # trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
-    # positions: pd.DataFrame = trend_following.positions
-    # print(positions)
-    x = GARCH(
-        instruments=instruments,
-        weights=(0.01, 0.01, 0.98),
-        minimum_observations=100
-    )
-    print(x.get_returns())
-    print(x.get_product_returns())
-    print(x.get_var())
-    print(x.get_cov())
+    trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
+    positions: pd.DataFrame = trend_following.positions
+    print(positions)
 
 
 if __name__ == "__main__":
