@@ -11,13 +11,23 @@ Functions:
 Author: Cole Rottenberg
 Organization: AlgoGators Investment Fund
 """
-from algo_trade.instrument import Contract, Agg, ContractType, RollType, CATALOG, DATASET
+from algo_trade.contract import Contract, Agg, ContractType, RollType, CATALOG, DATASET
 import pytest
 import databento as dbn
 import toml
+from dotenv import load_dotenv
+import os
+
+# Load the environment variables
+load_dotenv()
+if os.getenv('DATABENTO_API_KEY') is None:
+    raise ValueError('DATABENTO_API_KEY not found in environment variables.')
+else:
+    print(f"API Key: {os.getenv('DATABENTO_API_KEY')}")
 
 # Load the configuration file
 config = toml.load('config/config.toml')
+
 
 @pytest.fixture
 def contract() -> Contract:
@@ -25,7 +35,7 @@ def contract() -> Contract:
     Initialize a Contract object for testing.
     """
     contract: Contract = Contract('ES', dataset=DATASET.CME, schema=Agg.DAILY, catalog=CATALOG.DATABENTO)
-    client: dbn.Historical = dbn.Historical(config["databento"]["api_historical"])
+    client: dbn.Historical = dbn.Historical()
     contract.construct(client=client, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
     return contract
 
@@ -46,7 +56,8 @@ def test_contract_props(contract: Contract):
     assert contract.close is not None
     assert contract.volume is not None
     # Check for increasing dates
-    assert contract.timestamp == sorted(contract.timestamp)
+    assert contract.timestamp.is_monotonic_increasing
+    assert contract.timestamp.is_unique
 
 # Test the backadjusted method within the Contract class
 def test_backadjusted(contract: Contract):
@@ -68,6 +79,3 @@ def test_contract_expiration(contract: Contract):
     """
     assert contract.expiration.shape[0] == contract.timestamp.shape[0]
     assert contract.expiration.drop_duplicates().is_monotonic_increasing
-
-
-# Run the tests

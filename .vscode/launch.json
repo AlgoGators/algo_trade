@@ -6,29 +6,18 @@
   "configurations": [
     {
       "name": "Python Debugger: Module",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "algo_trade"
     },
     {
       // Launch the current file but under the module path using the -m flag
       "name": "Python: Current File",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${file}",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
     },
-    // {
-    //   // Debug the pytest files
-    //   "name": "Python: Pytest",
-    //   "type": "debugpy",
-    //   "request": "launch",
-    //   "program": "pytest",
-    //   "args": [
-    //     "${file}"
-    //   ],
-    //   "console": "integratedTerminal",
-    // }
   ]
 }
