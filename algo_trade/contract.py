@@ -2,11 +2,19 @@ from enum import StrEnum
 import pandas as pd
 import databento as db
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # TODO: Add more vendor catalogs such as Norgate
 class CATALOG(StrEnum):
     DATABENTO = f"data/catalog/databento/"
     NORGATE = f"data/catalog/norgate/"
+
+class URI(StrEnum):
+    DATABENTO = "s3://algogatorsbucket/catalog/databento/"
+    NORGATE = "s3://algogatorsbucket/catalog/norgate/"
 
 
 class ASSET(StrEnum):
