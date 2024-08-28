@@ -4,15 +4,16 @@ from typing import Any, Dict
 import pandas as pd
 import toml
 from abc import ABC
+import numpy as np
 
 # Internal
-from .strategy import Strategy, TrendFollowing
+from algo_trade.strategy import Strategy, TrendFollowing
 from algo_trade.instrument import Instrument
-from .pnl import PnL
+from algo_trade.pnl import PnL
 from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
 
 
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+base_dir = os.path.dirname(os.path.dirname(__file__))
 config_dir = os.path.join(base_dir, "config")
 config_path = os.path.join(config_dir, "config.toml")
 
@@ -29,11 +30,12 @@ class Portfolio(ABC):
     def prices(self):
         if not hasattr(self, '_prices'):
             self._prices = pd.DataFrame()
+            instrument : Instrument
             for instrument in self.instruments:
                 if self._prices.empty:
-                    self._prices = instrument.prices.to_frame().rename(columns={'Close': instrument.name})
+                    self._prices = instrument.price.to_frame(instrument.name)
                 else:
-                    self._prices = self._prices.join(instrument.prices.to_frame().rename(columns={'Close': instrument.name}), how='outer')
+                    self._prices = self._prices.join(instrument.price.to_frame(instrument.name), how='outer')
 
         return self._prices
 
@@ -52,7 +54,7 @@ class Portfolio(ABC):
         self._positions = value
 
     @property
-    def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)        
+    def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
 
 ### Example Portfolio
 class Trend(Portfolio):
