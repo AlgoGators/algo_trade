@@ -1,7 +1,5 @@
 # Algo-Trade
 
-Algo Trade is a Python application... 
-
 ## Running ib-gateway:
 This relies on [gnzsnz](https://github.com/gnzsnz)'s [ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker) repository.
 1. Clone the repository to desired machine.
