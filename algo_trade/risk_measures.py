@@ -46,25 +46,9 @@ class StandardDeviation(pd.DataFrame):
 
     def to_variance(self) -> 'Variance':
         return Variance(self ** 2)
-
-    # def __mul__(self, other : float) -> 'StandardDeviation':
-    #     if isinstance(other, pd.DataFrame):
-    #         return self.__data * other
-    #     if isinstance(other, pd.Series):
-    #         return self.__data * other
-    #     # return StandardDeviation(self.__data * other)
     
-    # def __pow__(self, other : float) -> 'StandardDeviation':
-    #     return self.__data ** other
-
-    # def __rtruediv__(self, other : float) -> 'StandardDeviation':
-    #     return other / self.__data
-    
-    # def __truediv__(self, other : float) -> 'StandardDeviation':
-    #     return self.__data / other
-    
-    # def __getitem__(self, key : str) -> pd.Series:
-    #     return self.__data[key]
+    def to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(self)
 
 class Variance(pd.DataFrame):
     def __init__(self, data : pd.DataFrame = None) -> None:
@@ -88,6 +72,9 @@ class Variance(pd.DataFrame):
     
     def to_standard_deviation(self) -> 'StandardDeviation':
         return StandardDeviation(self ** 0.5)
+    
+    def to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(self)
 
 class RiskMeasure(ABC):
     def __init__(self) -> None:
