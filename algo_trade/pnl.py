@@ -22,24 +22,48 @@ class PnL:
         self.__capital = capital
         self.__point_returns = self.__get_point_returns()
     
-    def get(self, return_type : ReturnType, timespan : Timespan, aggregate : bool = False) -> pd.DataFrame:
+    def get(self, return_type : ReturnType, timespan : Timespan, aggregate : bool = True) -> pd.DataFrame:
         match return_type, timespan:
             case self.ReturnType.POINT, self.Timespan.DAILY:
                 return self.__point_returns.sum(axis=1) if aggregate else self.__point_returns
-            case self.ReturnType.POINT, self.Timespan.ANNUALIZED:
-                return (self.__point_returns * DAYS_IN_YEAR).sum(axis=1) if aggregate else self.__point_returns
+            # case self.ReturnType.POINT, self.Timespan.ANNUALIZED:
+            #     return (self.__point_returns * DAYS_IN_YEAR).sum(axis=1) if aggregate else self.__point_returns
             case self.ReturnType.POINT, self.Timespan.CUMULATIVE:
                 return self.__point_returns.cumsum().sum(axis=1) if aggregate else self.__point_returns.cumsum()
 
             case self.ReturnType.PERCENT, self.Timespan.DAILY:
                 return self.__point_returns / self.__prices.shift(1) if not aggregate else self.__portfolio_percent_returns(self.__capital)
-            case self.ReturnType.PERCENT, self.Timespan.ANNUALIZED:
-                return self.__point_returns / self.__prices.shift(1) * DAYS_IN_YEAR if not aggregate else self.__portfolio_percent_returns(self.__capital) * DAYS_IN_YEAR
+            # case self.ReturnType.PERCENT, self.Timespan.ANNUALIZED:
+            #     return self.__point_returns / self.__prices.shift(1) * DAYS_IN_YEAR if not aggregate else self.__portfolio_percent_returns(self.__capital) * DAYS_IN_YEAR
             case self.ReturnType.PERCENT, self.Timespan.CUMULATIVE:
                 return (self.__point_returns / self.__prices.shift(1) + 1).cumprod() - 1 if not aggregate else self.__point_returns.sum(axis=1).cumsum() / self.__capital
 
             case _:
                 raise NotImplementedError
+
+    def get_sharpe_ratio(self, aggregate : bool = True) -> pd.Series:
+        returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
+        return returns.mean() / returns.std() * DAYS_IN_YEAR ** 0.5
+    
+    def get_volatility(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
+        returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
+        if timespan == self.Timespan.DAILY:
+            return returns.std() 
+        elif timespan == self.Timespan.ANNUALIZED:
+            return returns.std() * DAYS_IN_YEAR ** 0.5
+        else: 
+            raise NotImplementedError("The Enum provided, has not been implemented.")
+    
+    def get_mean_return(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
+        if timespan == self.Timespan.DAILY:
+            returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
+            return returns.mean()
+        elif timespan == self.Timespan.CUMULATIVE:
+            returns = self.get(self.ReturnType.PERCENT, self.Timespan.CUMULATIVE, aggregate)
+            total_return = returns.iloc[-1]
+            cagr = (1 + total_return) ** (1 / (returns.count() / DAYS_IN_YEAR)) - 1
+            return cagr
+        raise NotImplementedError("The Enum provided, has not been implemented.")
 
     def __portfolio_percent_returns(self, capital : float) -> pd.Series:
         capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)
