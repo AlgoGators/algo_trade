@@ -10,7 +10,7 @@ import numpy as np
 from algo_trade.strategy import Strategy, TrendFollowing
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
-from algo_trade.dyn_opt import aggregator
+# from algo_trade.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -63,16 +63,3 @@ class Trend(Portfolio):
             (1.0, TrendFollowing(instruments, risk_target, capital))
         ]
         super().__init__(instruments, self.strategies, capital)
-
-def dynamic_optimization(portfolio : Portfolio):
-    instruments = portfolio.instruments
-    positions = portfolio.positions
-    capital = portfolio.capital
-
-    aggregator(
-        portfolio.capital,
-        None,
-        None,
-        None,
-
-    )
