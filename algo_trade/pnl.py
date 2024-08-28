@@ -39,7 +39,7 @@ class PnL:
                 return (self.__point_returns / self.__prices.shift(1) + 1).cumprod() - 1 if not aggregate else self.__point_returns.sum(axis=1).cumsum() / self.__capital
 
             case _:
-                raise NotImplementedError
+                raise NotImplementedError(f"The Enums provided or the combination of them: {return_type, timespan}, has not been implemented.")
 
     def get_sharpe_ratio(self, aggregate : bool = True) -> pd.Series:
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
@@ -52,7 +52,7 @@ class PnL:
         elif timespan == self.Timespan.ANNUALIZED:
             return returns.std() * DAYS_IN_YEAR ** 0.5
         else: 
-            raise NotImplementedError("The Enum provided, has not been implemented.")
+            raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
     
     def get_mean_return(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
         if timespan == self.Timespan.DAILY:
@@ -63,7 +63,7 @@ class PnL:
             total_return = returns.iloc[-1]
             cagr = (1 + total_return) ** (1 / (returns.count() / DAYS_IN_YEAR)) - 1
             return cagr
-        raise NotImplementedError("The Enum provided, has not been implemented.")
+        raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
 
     def __portfolio_percent_returns(self, capital : float) -> pd.Series:
         capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)
