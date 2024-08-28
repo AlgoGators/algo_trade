@@ -14,9 +14,8 @@ class Strategy(ABC):
     Strategy class is an abstract class that defines the structure of a strategy. Strategies are composed of a list of Insturments, a list of Callable rules, and a list of scalars. The rules are applied to the instruments to generate a DataFrame of positions. The scalars are applied to the positions to generate the final positions DataFrame.
     """
 
-    def __init__(self, risk_target: float, capital: float):
+    def __init__(self, capital: float):
         self.instruments: list[Instrument] = []
-        self._risk_target = risk_target
         self._capital = capital
         self.risk_object : RiskMeasure = RiskMeasure()
         self.rules: list[Callable] = []
@@ -52,16 +51,18 @@ class Strategy(ABC):
 
 class TrendFollowing(Strategy):
     def __init__(self, instruments: list[Future], risk_target: float, capital: float):
-        super().__init__(risk_target=risk_target, capital=capital)
+        super().__init__(capital=capital)
         # Overload the instruments
         self.instruments: list[Future] = instruments
         self.risk_object = GARCH(
+            risk_target=risk_target,
             instruments=instruments,
             weights=(0.01, 0.01, 0.98),
             minimum_observations=100
         )
+        
         self.rules = [
-            partial(risk_parity, risk_object=self.risk_object, risk_target=risk_target),
+            partial(risk_parity, risk_object=self.risk_object),
             partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
             partial(equal_weight, instruments=instruments),
             partial(capital_scaling, instruments=instruments, capital=capital)
@@ -104,8 +105,8 @@ def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
 
     return capital_weighting
 
-def risk_parity(risk_object: RiskMeasure, risk_target: float) -> pd.DataFrame:
-    return risk_target / risk_object.get_var().to_standard_deviation().annualize()
+def risk_parity(risk_object: RiskMeasure) -> pd.DataFrame:
+    return risk_object.tau / risk_object.get_var().to_standard_deviation().annualize()
 
 def equal_weight(instruments: list[Future]) -> pd.DataFrame:
     df = pd.DataFrame()

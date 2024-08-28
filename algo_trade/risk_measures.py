@@ -4,8 +4,7 @@ from abc import ABC
 from typing import Self, Optional
 
 from algo_trade.instrument import Instrument, Future
-
-DAYS_IN_YEAR = 256
+from algo_trade._constants import DAYS_IN_YEAR
 
 class _utils:
     def ffill_zero(df: pd.DataFrame) -> pd.DataFrame:
@@ -77,8 +76,21 @@ class Variance(pd.DataFrame):
         return pd.DataFrame(self)
 
 class RiskMeasure(ABC):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, tau : float = None) -> None:
+        if tau is not None:
+            self.tau = tau
+
+    @property
+    def tau(self) -> float:
+        if not hasattr(self, '_tau'):
+            raise ValueError("tau is not set")
+        return self._tau
+    
+    @tau.setter
+    def tau(self, value : float) -> None:
+        if (value < 0) or not isinstance(value, float):
+            raise ValueError("tau, x, is a float such that x ∈ (0, inf)")
+        self._tau = value
 
     def get_returns(self) -> pd.DataFrame:
         raise NotImplementedError("Method not implemented")
@@ -112,10 +124,13 @@ class RiskMeasure(ABC):
 class GARCH(RiskMeasure):
     def __init__(
         self,
+        risk_target : float,
         instruments : list[Instrument],
         weights : tuple[float, float, float],
         minimum_observations : int,
         fill : bool = True) -> None:
+
+        super().__init__(tau=risk_target)
 
         self.instruments = instruments
         self.weights = weights
