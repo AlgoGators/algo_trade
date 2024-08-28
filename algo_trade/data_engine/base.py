@@ -4,37 +4,51 @@ The different classes are as follows:
 - Trend: The trend class is used to store the backadjusted data in the database defining the table schema for each contracts.
 - Carry: The carry class is used to store the front month and back month data in the database defining the table schema for each contract.
 """
+
 import os
 from typing import Any, Dict
 
 import toml
 
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-config_dir = os.path.join(base_dir, 'config')
-config_path = os.path.join(config_dir, 'config.toml')
+config_dir = os.path.join(base_dir, "config")
+config_path = os.path.join(config_dir, "config.toml")
 
 config_data: Dict[str, Any] = toml.load(config_path)
 
 # Setup PostgreSQL database parameters from the configuration data for later connection.
 DB_PARAMS: Dict[str, Any] = {
-    'trend': config_data['database']['db_trend'],
-    'carry': config_data['database']['db_carry'],
-    'user': config_data['database']['user'],
-    'password': config_data['database']['password'],
-    'host': config_data['server']['ip'],
-    'port': config_data['database']['port']
+    "trend": config_data["database"]["db_trend"],
+    "carry": config_data["database"]["db_carry"],
+    "user": config_data["database"]["user"],
+    "password": config_data["database"]["password"],
+    "host": config_data["server"]["ip"],
+    "port": config_data["database"]["port"],
 }
 
 import pandas as pd
+
 # The ORM used to store and load the data to the database is SQLAlchemy
-from sqlalchemy import (Column, DateTime, Float, Integer, MetaData, String,
-                        Table, create_engine)
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # * Declaring the engine for the ORM
-trend_engine = create_engine(f"postgresql+psycopg2://{DB_PARAMS['user']}:{DB_PARAMS['password']}@{DB_PARAMS['host']}:{DB_PARAMS['port']}/{DB_PARAMS['trend']}")
-carry_engine = create_engine(f"postgresql+psycopg2://{DB_PARAMS['user']}:{DB_PARAMS['password']}@{DB_PARAMS['host']}:{DB_PARAMS['port']}/{DB_PARAMS['carry']}")
+trend_engine = create_engine(
+    f"postgresql+psycopg2://{DB_PARAMS['user']}:{DB_PARAMS['password']}@{DB_PARAMS['host']}:{DB_PARAMS['port']}/{DB_PARAMS['trend']}"
+)
+carry_engine = create_engine(
+    f"postgresql+psycopg2://{DB_PARAMS['user']}:{DB_PARAMS['password']}@{DB_PARAMS['host']}:{DB_PARAMS['port']}/{DB_PARAMS['carry']}"
+)
 
 # * Declaring the session for the ORM
 TrendSession = sessionmaker(bind=trend_engine)
@@ -74,6 +88,7 @@ The schema for the carry data is as follows:
 - Back Volume: <int> The volume of the back month contract
 """
 
+
 # * Declaring the trend class
 class Trend:
     def __init__(self, data: pd.DataFrame, symbol: str):
@@ -84,19 +99,22 @@ class Trend:
         session = TrendSession()
         data = self.data.copy()
         data.reset_index(inplace=True)
-        data.to_sql(f"{self.symbol}_data", trend_engine, if_exists='replace', index=False)
+        data.to_sql(
+            f"{self.symbol}_data", trend_engine, if_exists="replace", index=False
+        )
         session.close()
-    
+
     def load(self):
         session = TrendSession()
         data = pd.read_sql(f"SELECT * FROM {self.symbol}_data", trend_engine)
         session.close()
         return data
-    
+
     def delete(self):
         session = TrendSession()
         session.execute(f"DROP TABLE IF EXISTS {self.symbol}_data")
         session.close()
+
 
 # * Declaring the carry class
 class Carry:
@@ -108,15 +126,17 @@ class Carry:
         session = CarrySession()
         data = self.data.copy()
         data.reset_index(inplace=True)
-        data.to_sql(f"{self.symbol}_data", carry_engine, if_exists='replace', index=False)
+        data.to_sql(
+            f"{self.symbol}_data", carry_engine, if_exists="replace", index=False
+        )
         session.close()
-    
+
     def load(self):
         session = CarrySession()
         data = pd.read_sql(f"SELECT * FROM {self.symbol}_data", carry_engine)
         session.close()
         return data
-    
+
     def delete(self):
         session = CarrySession()
         session.execute(f"DROP TABLE IF EXISTS {self.symbol}_data")

@@ -25,14 +25,15 @@ class _utils:
 
 class RiskMeasures:
     def __init__(
-            self,
-            trend_tables: dict[str, pd.DataFrame],
-            weights: tuple[float, float, float] = (0.01, 0.01, 0.98),
-            warmup: int = 100,
-            unadj_column: str = "Unadj_Close",
-            expiration_column: str = "Delivery Month",
-            date_column: str = "Date",
-            fill: bool = True) -> None:
+        self,
+        trend_tables: dict[str, pd.DataFrame],
+        weights: tuple[float, float, float] = (0.01, 0.01, 0.98),
+        warmup: int = 100,
+        unadj_column: str = "Unadj_Close",
+        expiration_column: str = "Delivery Month",
+        date_column: str = "Date",
+        fill: bool = True,
+    ) -> None:
 
         self.weights = weights
         self.warmup = warmup
@@ -57,16 +58,22 @@ class RiskMeasures:
 
     def reindex(self, inner: bool = True) -> None:
         if inner:
-            indexes = self.daily_returns.index.intersection(self.product_returns.index).intersection(
-                self.GARCH_variances.index).intersection(self.GARCH_covariances.index)
+            indexes = (
+                self.daily_returns.index.intersection(self.product_returns.index)
+                .intersection(self.GARCH_variances.index)
+                .intersection(self.GARCH_covariances.index)
+            )
             self.daily_returns = self.daily_returns.loc[indexes]
             self.product_returns = self.product_returns.loc[indexes]
             self.GARCH_variances = self.GARCH_variances.loc[indexes]
             self.GARCH_covariances = self.GARCH_covariances.loc[indexes]
             return
 
-        indexes = self.daily_returns.index.union(self.product_returns.index).union(self.GARCH_variances.index).union(
-            self.GARCH_covariances.index)
+        indexes = (
+            self.daily_returns.index.union(self.product_returns.index)
+            .union(self.GARCH_variances.index)
+            .union(self.GARCH_covariances.index)
+        )
         self.daily_returns = self.daily_returns.reindex(indexes)
         self.product_returns = self.product_returns.reindex(indexes)
         self.GARCH_variances = self.GARCH_variances.reindex(indexes)
@@ -93,11 +100,15 @@ class RiskMeasures:
             for i, delivery_month in enumerate(delivery_months):
 
                 # creates a dataframe for each delivery month
-                df_delivery_month = prices[prices[self.expiration_column] == delivery_month]
+                df_delivery_month = prices[
+                    prices[self.expiration_column] == delivery_month
+                ]
 
                 percent_change = pd.DataFrame()
-                percent_change[instrument] = df_delivery_month[self.unadj_column].diff() / df_delivery_month[
-                    self.unadj_column].abs().shift()
+                percent_change[instrument] = (
+                    df_delivery_month[self.unadj_column].diff()
+                    / df_delivery_month[self.unadj_column].abs().shift()
+                )
 
                 # set index
                 if self.date_column in df_delivery_month.columns:
@@ -122,7 +133,13 @@ class RiskMeasures:
                 daily_returns = percent_returns
                 continue
 
-            daily_returns = pd.merge(daily_returns, percent_returns, how='outer', left_index=True, right_index=True)
+            daily_returns = pd.merge(
+                daily_returns,
+                percent_returns,
+                how="outer",
+                left_index=True,
+                right_index=True,
+            )
 
         daily_returns = _utils.ffill_zero(daily_returns) if self.fill else daily_returns
 
@@ -132,7 +149,7 @@ class RiskMeasures:
         newDateFormat = []
         for a, date in dateIndex.items():
             newFormat = ""
-            if '/' in date:
+            if "/" in date:
                 month = date[0:2]
                 day = date[3:5]
                 year = date[6:10]
@@ -156,12 +173,17 @@ class RiskMeasures:
                 if i > j:
                     continue
 
-                product_dictionary[f'{instrument_X}_{instrument_Y}'] = self.daily_returns[instrument_X] * \
-                                                                       self.daily_returns[instrument_Y]
+                product_dictionary[f"{instrument_X}_{instrument_Y}"] = (
+                    self.daily_returns[instrument_X] * self.daily_returns[instrument_Y]
+                )
 
-        product_returns = pd.DataFrame(product_dictionary, index=self.daily_returns.index)
+        product_returns = pd.DataFrame(
+            product_dictionary, index=self.daily_returns.index
+        )
 
-        product_returns = _utils.ffill_zero(product_returns) if self.fill else product_returns
+        product_returns = (
+            _utils.ffill_zero(product_returns) if self.fill else product_returns
+        )
 
         return product_returns
 
@@ -182,15 +204,21 @@ class RiskMeasures:
 
     # ?     return product_returns
 
-    def __calculate_GARCH_variance(self, squared_return: float, last_estimate: float, LT_variance: float) -> float:
+    def __calculate_GARCH_variance(
+        self, squared_return: float, last_estimate: float, LT_variance: float
+    ) -> float:
         if sum(self.weights) != 1:
-            raise ValueError('The sum of the weights must be equal to 1')
+            raise ValueError("The sum of the weights must be equal to 1")
 
-        return squared_return * self.weights[0] + last_estimate * self.weights[1] + LT_variance * self.weights[2]
+        return (
+            squared_return * self.weights[0]
+            + last_estimate * self.weights[1]
+            + LT_variance * self.weights[2]
+        )
 
     def __calculate_GARCH_variances(self) -> pd.DataFrame:
         if sum(self.weights) != 1:
-            raise ValueError('The sum of the weights must be equal to 1')
+            raise ValueError("The sum of the weights must be equal to 1")
 
         GARCH_variances: pd.DataFrame = pd.DataFrame()
 
@@ -201,24 +229,37 @@ class RiskMeasures:
             dates = squared_returns.index
 
             # Calculate rolling LT variance
-            LT_variances = squared_returns.rolling(window=self.warmup).mean().fillna(method='bfill')
+            LT_variances = (
+                squared_returns.rolling(window=self.warmup)
+                .mean()
+                .fillna(method="bfill")
+            )
 
             df = pd.Series(index=dates)
             df[0] = squared_returns[0]
 
             for j, _ in enumerate(dates[1:], 1):
-                df[j] = self.__calculate_GARCH_variance(squared_returns[j], df[j - 1], LT_variances[j])
+                df[j] = self.__calculate_GARCH_variance(
+                    squared_returns[j], df[j - 1], LT_variances[j]
+                )
 
             if i == 0:
                 GARCH_variances = df.to_frame(instrument)
                 continue
 
-            GARCH_variances = pd.merge(GARCH_variances, df.to_frame(instrument), how='outer', left_index=True,
-                                       right_index=True)
+            GARCH_variances = pd.merge(
+                GARCH_variances,
+                df.to_frame(instrument),
+                how="outer",
+                left_index=True,
+                right_index=True,
+            )
 
-        GARCH_variances = GARCH_variances.interpolate() if self.fill else GARCH_variances
+        GARCH_variances = (
+            GARCH_variances.interpolate() if self.fill else GARCH_variances
+        )
 
-        return GARCH_variances[self.warmup:]
+        return GARCH_variances[self.warmup :]
 
     # ? def __update_GARCH_variance(self, variances : pd.DataFrame, returns : pd.DataFrame) -> pd.DataFrame:
     # ?     returns = pd.read_parquet('risk_measures/unittesting/data/daily_returns.parquet')
@@ -238,26 +279,35 @@ class RiskMeasures:
 
     def __calculate_GARCH_covariances(self) -> pd.DataFrame:
         if sum(self.weights) != 1:
-            raise ValueError('The sum of the weights must be equal to 1')
+            raise ValueError("The sum of the weights must be equal to 1")
 
         # GARCH_covariances : pd.DataFrame = pd.DataFrame()
 
         product_returns = self.product_returns.dropna()
-        LT_covariances: pd.DataFrame = product_returns.rolling(window=self.warmup).mean().fillna(method='bfill')
+        LT_covariances: pd.DataFrame = (
+            product_returns.rolling(window=self.warmup).mean().fillna(method="bfill")
+        )
 
         LT_covars = LT_covariances.values
         p_returns = product_returns.values
 
-        GARCH_covariances = pd.DataFrame(index=product_returns.index, columns=product_returns.columns, dtype=float)
+        GARCH_covariances = pd.DataFrame(
+            index=product_returns.index, columns=product_returns.columns, dtype=float
+        )
         GARCH_covariances.iloc[0] = p_returns[0]
 
         for i in range(1, len(p_returns)):
-            GARCH_covariances.iloc[i] = p_returns[i] * self.weights[0] + GARCH_covariances.iloc[i - 1] * self.weights[
-                1] + LT_covars[i] * self.weights[2]
+            GARCH_covariances.iloc[i] = (
+                p_returns[i] * self.weights[0]
+                + GARCH_covariances.iloc[i - 1] * self.weights[1]
+                + LT_covars[i] * self.weights[2]
+            )
 
-        GARCH_covariances = GARCH_covariances.interpolate() if self.fill else GARCH_covariances
+        GARCH_covariances = (
+            GARCH_covariances.interpolate() if self.fill else GARCH_covariances
+        )
 
-        return GARCH_covariances.iloc[self.warmup:, :]
+        return GARCH_covariances.iloc[self.warmup :, :]
 
     # ? def __update_GARCH_covariance(self, covariances : pd.DataFrame, product_returns : pd.DataFrame) -> pd.DataFrame:
     # ?     if sum(self.weights) != 1:
@@ -267,11 +317,15 @@ class RiskMeasures:
     # ?     return covariances
 
 
-def calculate_value_at_risk_historical(returns: pd.DataFrame, confidence_level: float, lookback: int) -> pd.DataFrame:
+def calculate_value_at_risk_historical(
+    returns: pd.DataFrame, confidence_level: float, lookback: int
+) -> pd.DataFrame:
     # Calculate the historical value at risk
     return -returns.rolling(window=lookback).quantile(1 - confidence_level)
 
 
-def calculate_value_at_risk_parametric(variances: pd.DataFrame, confidence_level: float) -> pd.DataFrame:
+def calculate_value_at_risk_parametric(
+    variances: pd.DataFrame, confidence_level: float
+) -> pd.DataFrame:
     # Calculate the parametric value at risk
-    return -variances.apply(lambda x: x ** 0.5 * norm.ppf(1 - confidence_level))
+    return -variances.apply(lambda x: x**0.5 * norm.ppf(1 - confidence_level))

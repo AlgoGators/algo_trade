@@ -58,10 +58,12 @@ class Transformation:
         - None
 
         Returns:
-        - The standard deviation of the backadjusted data 
+        - The standard deviation of the backadjusted data
         """
         data = self.format_trend()
-        return standardDeviation(adjusted_price=data["Close"], current_price=data["Close Unadjusted"])
+        return standardDeviation(
+            adjusted_price=data["Close"], current_price=data["Close Unadjusted"]
+        )
 
     def get_current_price(self) -> pd.Series:
         """
@@ -191,7 +193,10 @@ class Transformation:
         # Loop through the dataframe and adjust the prices
         for i in range(1, len(back)):
             # If the instrument_id_data changes
-            if (back["instrument_id_data"].iloc[i] != back["instrument_id_data"].iloc[i - 1]):
+            if (
+                back["instrument_id_data"].iloc[i]
+                != back["instrument_id_data"].iloc[i - 1]
+            ):
                 adj_factor += back["close"].iloc[i - 1] - back["close"].iloc[i]
             # Adjust the prices
             # back["open_adj"].iloc[i] += adj_factor
@@ -337,7 +342,7 @@ class Transformation:
             )
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= ((variance ** 0.5) * data["Close Unadjusted"])
+            trend[f"{t1}-{t2}"] /= (variance**0.5) * data["Close Unadjusted"]
 
         # Scale the crossovers by the absolute mean of all previous crossovers
         # scalar_dict = {}
@@ -390,19 +395,25 @@ class Transformation:
         data = self.format_carry()
         raw_carry = data["Front Close"] - data["Back Close"]
         # The raw carry is found by finding the difference between the price of the currently held contract and the price of the next contract
-        annualized_carry = (raw_carry
-            / ((data["Back Expiration"] - data["Front Expiration"]).dt.days / 365).mean())
-        
+        annualized_carry = (
+            raw_carry
+            / (
+                (data["Back Expiration"] - data["Front Expiration"]).dt.days / 365
+            ).mean()
+        )
+
         # The annualized carry is found by dividing the raw carry by the number of days between the expiration of the front and back month contracts
         raw = self.format_trend()
         # ! Reaccess the functionality of the standard deviation class
         # stdDev = standardDeviation(
         #     adjusted_price=raw["Close"], current_price=raw["Close Unadjusted"])
 
-        risk_adjusted_carry = annualized_carry / ((variance ** 0.5) * data["Front Close"] * 16)
+        risk_adjusted_carry = annualized_carry / (
+            (variance**0.5) * data["Front Close"] * 16
+        )
 
         spans = [5, 20, 60, 120]
-        smoothed_carries : list = []
+        smoothed_carries: list = []
         for span in spans:
             smoothed_carries.append(
                 risk_adjusted_carry.ewm(span=span, min_periods=1).mean()
@@ -495,9 +506,11 @@ class Transforms:
         """
         The get_risk method within the Transforms class returns the standard deviation of the backadjusted data for all the symbols.
         """
-        risk_dct : dict[str, standardDeviation] = {t.get_symbol(): t.get_risk() for t in self.transformations}
-        
-        merged_df : pd.DataFrame = pd.DataFrame()
+        risk_dct: dict[str, standardDeviation] = {
+            t.get_symbol(): t.get_risk() for t in self.transformations
+        }
+
+        merged_df: pd.DataFrame = pd.DataFrame()
         for key, df in risk_dct.items():
             df.name = key
             if merged_df.empty:
@@ -516,17 +529,19 @@ class Transforms:
         Returns:
         - pd.DataFrame: The current price of the data for each of the symbols
         """
-        price_dct = {t.get_symbol(): t.get_current_price() for t in self.transformations}
+        price_dct = {
+            t.get_symbol(): t.get_current_price() for t in self.transformations
+        }
 
-        merged_df : pd.DataFrame = pd.DataFrame()
+        merged_df: pd.DataFrame = pd.DataFrame()
         for key, df in price_dct.items():
             df.name = key
             if merged_df.empty:
                 merged_df = df
             else:
                 merged_df = pd.concat([merged_df, df], axis=1, join="outer")
-        return merged_df 
-    
+        return merged_df
+
     def get_open_interest(self) -> pd.DataFrame:
         """
         The get_open_interest method returns the open interest of the instruments in the portfolio
@@ -560,7 +575,7 @@ class Transforms:
 
         # Store the combined trend and carry signals
 
-    def signals(self, variances : pd.DataFrame) -> pd.DataFrame:
+    def signals(self, variances: pd.DataFrame) -> pd.DataFrame:
         trend_signals: dict[str, pd.DataFrame] = {
             t.get_symbol(): t.trend(variances[t.get_symbol()])
             for t in self.transformations
@@ -572,7 +587,8 @@ class Transforms:
         # Combine the trend and carry signals but of a 60% weight to the trend signals and 40% weight to the carry signals
         #! found carry signals but mang fuck carry
         combined_signals: dict[str, pd.Series] = {
-            t.get_symbol(): trend_signals[t.get_symbol()]*1.0 + carry_signals[t.get_symbol()]*0
+            t.get_symbol(): trend_signals[t.get_symbol()] * 1.0
+            + carry_signals[t.get_symbol()] * 0
             for t in self.transformations
         }
 
