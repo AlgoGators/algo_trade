@@ -10,7 +10,7 @@ import numpy as np
 from algo_trade.strategy import Strategy, TrendFollowing
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
-from algo_trade.risk_management.dyn_opt.dyn_opt import aggregator
+from algo_trade.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(__file__))

@@ -1,10 +1,7 @@
 from enum import Enum, auto
 import pandas as pd
 import numpy as np
-
-DAYS_IN_YEAR = 256
-
-### PnL
+from algo_trade._constants import DAYS_IN_YEAR
 
 class PnL:
     class ReturnType(Enum):

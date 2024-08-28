@@ -5,10 +5,10 @@ from functools import reduce
 import numpy as np
 import pandas as pd
 
-from ..risk_limits import portfolio_risk, position_risk
-from ..risk_measures.risk_functions import \
-    daily_variance_to_annualized_volatility
-from ..shared_functions._logging import CsvFormatter
+from algo_trade.risk_limits import PortfolioMultiplier, PositionLimit
+from algo_trade.risk_measures import RiskMeasure
+from algo_trade._constants import DAYS_IN_YEAR
+from algo_trade.risk_logging import CsvFormatter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -179,16 +179,16 @@ def single_day_optimized_positions(
     else:
         optimized_positions_one_day = ideal_positions_weighted / weight_per_contract_one_day
 
-    annualized_volatilities = daily_variance_to_annualized_volatility(np.diag(covariance_matrix_one_day))
+    annualized_volatilities = np.diag(covariance_matrix_one_day) * DAYS_IN_YEAR ** 0.5
 
-    risk_limited_positions = position_risk.position_limit_aggregator(
+    risk_limited_positions = PositionLimit.position_limit_aggregator(
         maximum_position_leverage, capital, IDM, tau, maximum_forecast_ratio,
         max_acceptable_pct_of_open_interest, max_forecast_buffer, optimized_positions_one_day,
         notional_exposure_per_contract_one_day, annualized_volatilities, instrument_weight_one_day, open_interest_one_day, additional_data)
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 
-    portfolio_risk_limited_positions = portfolio_risk.portfolio_risk_aggregator(
+    portfolio_risk_limited_positions = PortfolioMultiplier.portfolio_risk_aggregator(
         risk_limited_positions, risk_limited_positions_weighted, covariance_matrix_one_day,
         jump_covariance_matrix_one_day, maximum_portfolio_leverage, maximum_correlation_risk,
         maximum_portfolio_risk, maximum_jump_risk, date=additional_data[1])

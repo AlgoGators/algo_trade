@@ -7,8 +7,7 @@ from functools import partial
 
 from algo_trade.instrument import Future, Instrument, RollType, ContractType, Agg
 from algo_trade.risk_measures import RiskMeasure, GARCH
-
-DAYS_IN_YEAR = 256
+from algo_trade._constants import DAYS_IN_YEAR
 
 class Strategy(ABC):
     """
