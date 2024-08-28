@@ -46,13 +46,14 @@ class SETTINGS:
     expiration_column = "Expiration"
     date_column = "Timestamp"
     capital = 500_000
-    fixed_cost_per_contract = 3.00
+    fixed_cost_per_contract = 0.40
     tau = 0.20
     asymmetric_risk_buffer = 0.05
     instrument_weight = 0.10
     IDM = 2.5
     maxmimum_forecast_ratio = 2.0
     max_acceptable_pct_of_open_interest = 0.10
+    MINIMUM_VOLUME = 100
     max_forecast_buffer = 0.5
     maximum_position_leverage = 2.0
     maximum_portfolio_leverage = 20.0
@@ -135,11 +136,44 @@ def main():
         multipliers = instruments_df[["dataSymbol", "multiplier"]].set_index("dataSymbol").transpose()
 
         ideal_positions: pd.DataFrame = pipeline.positions(capital=SETTINGS.capital, tau=SETTINGS.tau, multipliers=multipliers, variances=garch_variances, IDM=SETTINGS.IDM)
+
+        price_tables = pipeline.get_price_tables()
+        column_names = list(price_tables.keys())
+        adj_prices = pd.concat([price_tables[key].Close for key in column_names], axis=1)
+        adj_prices.columns = column_names
+
+        adj_prices.to_csv('data/adj_prices.csv')
+
         unadj_prices = pipeline.get_prices()
         open_interest = pipeline.get_open_interest()
         open_interest = merge_dfs(open_interest)
 
         instrument_weights = pd.DataFrame(1 / len(ideal_positions.columns), index=ideal_positions.index, columns=ideal_positions.columns)
+
+        ideal_risk_adjusted_positions : pd.DataFrame = aggregator(
+            SETTINGS.capital,
+            SETTINGS.fixed_cost_per_contract,
+            SETTINGS.tau,
+            SETTINGS.asymmetric_risk_buffer,
+            unadj_prices,
+            multipliers,
+            ideal_positions,
+            garch_covariances,
+            jump_covariances,
+            open_interest,
+            instrument_weights,
+            SETTINGS.IDM,
+            SETTINGS.maxmimum_forecast_ratio,
+            SETTINGS.MINIMUM_VOLUME,
+            SETTINGS.max_forecast_buffer,
+            SETTINGS.maximum_position_leverage,
+            SETTINGS.maximum_portfolio_leverage,
+            SETTINGS.maximum_correlation_risk,
+            SETTINGS.maximum_portfolio_risk,
+            SETTINGS.maximum_jump_risk,
+            SETTINGS.cost_penalty_scalar,
+            False
+        )
 
         # 4. Dynamic Optimization
         positions : pd.DataFrame = aggregator(
@@ -156,7 +190,7 @@ def main():
             instrument_weights,
             SETTINGS.IDM,
             SETTINGS.maxmimum_forecast_ratio,
-            SETTINGS.max_acceptable_pct_of_open_interest,
+            SETTINGS.MINIMUM_VOLUME,
             SETTINGS.max_forecast_buffer,
             SETTINGS.maximum_position_leverage,
             SETTINGS.maximum_portfolio_leverage,
@@ -165,6 +199,9 @@ def main():
             SETTINGS.maximum_jump_risk,
             SETTINGS.cost_penalty_scalar,
         )
+
+        ideal_risk_adjusted_positions.to_csv("data/ideal_positions.csv")
+        positions.to_csv("data/positions.csv")
 
         # 5. Place Orders
 
