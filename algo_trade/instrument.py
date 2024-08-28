@@ -127,6 +127,7 @@ class Instrument(ABC):
         """
         return (self.symbol, self.dataset)
     
+    #! PRICE MUST BE THE PRICE THAT YOU WANT TO USE FOR BACKTESTING
     @property
     def price(self) -> pd.Series:
         """
