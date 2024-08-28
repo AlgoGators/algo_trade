@@ -7,20 +7,6 @@ from algo_trade.instrument import Instrument, Future
 
 DAYS_IN_YEAR = 256
 
-def get_jump_covariances(covariances : pd.DataFrame, percentile : float, window : int) -> pd.DataFrame:
-    dates = covariances.index
-
-    jump_covariances = pd.DataFrame(index=dates, columns=covariances.columns)
-
-    for i in range(len(dates)):
-        if i < window:
-            continue
-
-        window_covariances = covariances.iloc[i-window:i]
-        jump_covariances.iloc[i] = window_covariances.quantile(percentile)
-
-    return jump_covariances
-
 class _utils:
     def ffill_zero(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -105,6 +91,23 @@ class RiskMeasure(ABC):
 
     def get_cov(self) -> pd.DataFrame:
         raise NotImplementedError("Method not implemented")
+    
+    def get_jump_cov(self, percentile : float, window : int) -> pd.DataFrame:
+        if (percentile < 0) or (percentile > 1):
+            raise ValueError("percentile, x, is a float such that x ∈ (0, 1)")
+
+        dates = self.get_cov().index
+
+        jump_covariances = pd.DataFrame(index=dates, columns=self.get_cov().columns)
+
+        for i in range(len(dates)):
+            if i < window:
+                continue
+
+            window_covariances = self.get_cov().iloc[i-window:i]
+            jump_covariances.iloc[i] = window_covariances.quantile(percentile)
+
+        return jump_covariances
 
 class GARCH(RiskMeasure):
     def __init__(
@@ -219,3 +222,6 @@ class GARCH(RiskMeasure):
         self.__cov = self.__cov.interpolate() if self.fill else self.__cov
 
         return self.__cov.iloc[self.minimum_observations:, :]
+
+    def get_jump_cov(self, percentile : float, window : int) -> pd.DataFrame:
+        return super().get_jump_cov(percentile=percentile, window=window)
