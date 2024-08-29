@@ -6,7 +6,7 @@ from algo_trade.instrument import Instrument, Future, RollType, ContractType, Ag
 from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals
 from algo_trade.risk_measures import GARCH
 
-class TrendFollowing(Strategy):
+class TrendFollowing(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_target: float, capital: float):
         super().__init__(capital=capital)
         # Overload the instruments
