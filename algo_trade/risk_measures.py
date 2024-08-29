@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Self, Optional
 
 from algo_trade.instrument import Instrument, Future
@@ -92,17 +92,21 @@ class RiskMeasure(ABC):
             raise ValueError("tau, x, is a float such that x ∈ (0, inf)")
         self._tau = value
 
+    @abstractmethod
     def get_returns(self) -> pd.DataFrame:
-        raise NotImplementedError("Method not implemented")
+        pass
 
+    @abstractmethod
     def get_product_returns(self) -> pd.DataFrame:
-        raise NotImplementedError("Method not implemented")
+        pass
 
+    @abstractmethod
     def get_var(self) -> Variance:
-        raise NotImplementedError("Method not implemented")
+        pass
 
+    @abstractmethod
     def get_cov(self) -> pd.DataFrame:
-        raise NotImplementedError("Method not implemented")
+        pass
     
     def get_jump_cov(self, percentile : float, window : int) -> pd.DataFrame:
         if (percentile < 0) or (percentile > 1):

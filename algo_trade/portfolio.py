@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, TypeVar, Generic
 
 import pandas as pd
 import toml
@@ -7,10 +7,9 @@ from abc import ABC
 import numpy as np
 
 # Internal
-from algo_trade.strategy import Strategy, TrendFollowing
+from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
-# from algo_trade.dyn_opt import aggregator
 
 
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -19,12 +18,14 @@ config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
 
-class Portfolio(ABC):
-    def __init__(self, instruments : list[Instrument], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
-        self.instruments = instruments
-        self.weighted_strategies = weighted_strategies
-        self.capital = capital
-        self.multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
+T = TypeVar('T', bound='Instrument')
+
+class Portfolio(ABC, Generic[T]):
+    def __init__(self, instruments : list[T], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
+        self.instruments : list[T] = instruments
+        self.weighted_strategies : list[tuple[float, Strategy]] = weighted_strategies
+        self.capital : float = capital
+        self.multipliers : pd.DataFrame = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
 
     @property
     def prices(self):
@@ -55,11 +56,3 @@ class Portfolio(ABC):
 
     @property
     def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
-
-### Example Portfolio
-class Trend(Portfolio):
-    def __init__(self, instruments : list[Instrument], risk_target : float, capital : float):
-        self.strategies = [
-            (1.0, TrendFollowing(instruments, risk_target, capital))
-        ]
-        super().__init__(instruments, self.strategies, capital)

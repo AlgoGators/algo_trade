@@ -132,11 +132,8 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
 
 ### Portfolio Rules
 
-def dynamic_optimization(portfolio : Portfolio):
-    instruments = portfolio.instruments
-    positions = portfolio.positions
-    capital = portfolio.capital
-
+def dynamic_optimization(portfolio : Portfolio[Future]):
+    portfolio.instruments[0].front
     aggregator(
         portfolio.capital,
         None,
