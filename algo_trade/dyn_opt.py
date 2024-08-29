@@ -183,19 +183,18 @@ def single_day_optimization(
 
     return round_multiple(portfolio_risk_limited_positions, 1) if optimization else portfolio_risk_limited_positions
 
-def dynamic_optimization(
+def dyn_opt(
         portfolio : Portfolio[Future],
-        risk_object : RiskMeasure,
-        cost_per_contract : float,
         instrument_weights : pd.DataFrame,
+        cost_per_contract : float,
         asymmetric_risk_buffer : float,
         cost_penalty_scalar : float,
         position_limit_aggregator : Callable,
         portfolio_multiplier_aggregator : Callable) -> Portfolio[Future]:
     
     unadj_prices = pd.DataFrame([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments])
-    covariances = risk_object.get_cov()
-    jump_covariances : pd.DataFrame = risk_object.get_jump_cov()
+    covariances = portfolio.risk_object.get_cov()
+    jump_covariances : pd.DataFrame = portfolio.risk_object.get_jump_cov()
     volume = pd.DataFrame([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments])
 
     notional_exposure_per_contract = unadj_prices * portfolio.multipliers.iloc[0]
@@ -233,7 +232,7 @@ def dynamic_optimization(
             covariance_matrix[n],
             jump_covariance_matrix[n],
             volume_matrix[n],
-            risk_object.tau,
+            portfolio.risk_object.tau,
             portfolio.capital,
             asymmetric_risk_buffer,
             cost_penalty_scalar,

@@ -5,11 +5,13 @@ import pandas as pd
 import toml
 from abc import ABC
 import numpy as np
+from typing import Callable
 
 # Internal
 from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
+from algo_trade.risk_measures import RiskMeasure
 
 
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -25,6 +27,8 @@ class Portfolio(ABC, Generic[T]):
         self.instruments : list[T] = instruments
         self.weighted_strategies : list[tuple[float, Strategy]] = weighted_strategies
         self.capital : float = capital
+        self.risk_object : RiskMeasure = None
+        self.portfolio_rules : list[Callable] = []
         self.multipliers : pd.DataFrame = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
 
     @property

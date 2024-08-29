@@ -5,18 +5,48 @@ from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument, Future, RollType, ContractType, Agg
 from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals
 from algo_trade.risk_measures import GARCH
+from algo_trade.dyn_opt import dyn_opt
+from algo_trade.risk_limits import PortfolioMultiplier, PositionLimit
 
 class TrendFollowing(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_target: float, capital: float):
         super().__init__(capital=capital)
-        # Overload the instruments
         self.instruments: list[Future] = instruments
+        
         self.risk_object = GARCH(
             risk_target=risk_target,
             instruments=instruments,
             weights=(0.01, 0.01, 0.98),
             minimum_observations=100
         )
+
+        self.portfolio_rules = [
+            partial(
+                dyn_opt,
+                portfolio=self,
+                instrument_weights=equal_weight(instruments=instruments),
+                cost_per_contract=3.0,
+                asymmetric_risk_buffer=0.05, 
+                cost_penalty_scalar=10, 
+                position_limit_aggregator=partial(
+                    PositionLimit.position_limit_aggregator,
+                    maximum_position_leverage=2.0,
+                    capital=capital,
+                    IDM=2.5,
+                    tau=risk_target,
+                    maximum_forecast_ratio=2.0,
+                    minimum_volume=100,
+                    max_forecast_buffer=0.5
+                ),
+                portfolio_risk_aggregator=partial(
+                    PortfolioMultiplier.portfolio_risk_aggregator,
+                    maximum_portfolio_leverage=20,
+                    maximum_correlation_risk=0.65,
+                    maximum_portfolio_risk=0.30,
+                    maximum_jump_risk=0.75
+                )
+            )
+        ]
         
         self.rules = [
             partial(risk_parity, risk_object=self.risk_object),
@@ -46,13 +76,19 @@ class Trend(Portfolio):
         super().__init__(instruments, self.strategies, capital)
 
 def main():
-    import pandas as pd
-    instruments: list[Future] = [
+    # import pandas as pd
+    # instruments: list[Future] = [
+    #     Future(symbol="ES", dataset="CME", multiplier=5)
+    # ]
+    # trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
+    # positions: pd.DataFrame = trend_following.positions
+    # print(positions)
+
+    futures : list[Future] = [
         Future(symbol="ES", dataset="CME", multiplier=5)
     ]
-    trend_following: TrendFollowing = TrendFollowing(instruments, 0.2, 100_000)
-    positions: pd.DataFrame = trend_following.positions
-    print(positions)
+
+    trend: Trend = Trend(futures, 0.2, 100_000)
 
 
 if __name__ == "__main__":
