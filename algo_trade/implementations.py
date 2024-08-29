@@ -35,7 +35,7 @@ class TrendFollowing(Strategy[Future]):
                     max_forecast_ratio=2.0,
                     max_forecast_buffer=0.5,
                     IDM=2.5,
-                    tau=risk_target,
+                    tau=risk_target
                 ),
                 portfolio_multiplier_fn=partial(
                     portfolio_multiplier,
