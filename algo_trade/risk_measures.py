@@ -196,6 +196,15 @@ class GARCH(RiskMeasure):
         if not self.__var.empty:
             return self.__var
         
+        if not self.__cov.empty:
+            for name in self.__cov.columns:
+                if '_' not in name:
+                    continue
+                if name.split('_')[0] != name.split('_')[1]:
+                    continue
+                self.__var[name.split('_')[0]] = self.__cov[name]
+            return self.__var
+        
         variance : pd.DataFrame = pd.DataFrame()
 
         for i, instrument in enumerate(self.get_returns().columns.tolist()):
