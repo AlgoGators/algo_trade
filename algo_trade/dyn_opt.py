@@ -1,12 +1,22 @@
 import pandas as pd
 import numpy as np
-from typing import Callable
 import datetime
+import logging
+from typing import Callable
 
 from algo_trade.portfolio import Portfolio
 from algo_trade.instrument import Instrument, Future
 from algo_trade.risk_measures import RiskMeasure
 from algo_trade._constants import DAYS_IN_YEAR
+from algo_trade.risk_logging import CsvFormatter
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[logging.FileHandler('log.csv', mode='w'),
+        logging.StreamHandler()])
+
+logger = logging.getLogger(__name__)
+logging.root.handlers[0].setFormatter(CsvFormatter())
 
 
 def reindex(dfs : tuple, inplace=False) -> tuple[pd.DataFrame] | None:
