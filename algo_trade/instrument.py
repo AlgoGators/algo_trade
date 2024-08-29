@@ -180,7 +180,7 @@ class Future(Instrument):
         Returns:
         Bar: The front month contract of the future instrument
         """
-        if self._front is None:
+        if not hasattr(self, "_front"):
             raise ValueError("Front is empty")
         return self._front
 

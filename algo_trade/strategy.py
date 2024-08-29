@@ -17,7 +17,7 @@ class Strategy(Generic[T], ABC):
     def __init__(self, capital: float):
         self.instruments: list[T] = []
         self._capital = capital
-        self.risk_object : RiskMeasure = RiskMeasure()
+        self.risk_object : RiskMeasure = None
         self.rules: list[Callable] = []
         self.scalars: list[float] = []
 
