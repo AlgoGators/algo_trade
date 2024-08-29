@@ -12,7 +12,7 @@ Organization: AlgoGators Investment Fund
 """
 
 from algo_trade.instrument import Future
-from algo_trade.contract import Agg, RollType, ContractType
+from algo_trade.contract import Agg, RollType, ContractType, CATALOG
 
 import pytest
 import pandas as pd
