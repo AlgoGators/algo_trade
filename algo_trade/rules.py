@@ -1,9 +1,8 @@
 import pandas as pd
+import numpy as np
 
 from algo_trade.instrument import Future
 from algo_trade.risk_measures import RiskMeasure
-from algo_trade.portfolio import Portfolio
-from algo_trade.dyn_opt import aggregator
 
 ### Strategy Rules
 
@@ -129,15 +128,3 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
             df = df.join(series.to_frame(), how="outer")
 
     return df
-
-### Portfolio Rules
-
-def dynamic_optimization(portfolio : Portfolio[Future]):
-    portfolio.instruments[0].front
-    aggregator(
-        portfolio.capital,
-        None,
-        None,
-        None,
-
-    )
