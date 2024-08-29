@@ -146,7 +146,7 @@ def single_day_optimization(
         cost_penalty_scalar : int,
         additional_data : tuple[list[str], list[datetime.datetime]],
         optimization : bool,
-        position_limit_aggregator : Callable,
+        position_limit_fn : Callable,
         portfolio_multiplier_fn : Callable) -> np.ndarray:
 
     covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(covariances_one_day)
@@ -169,15 +169,17 @@ def single_day_optimization(
     else:
         optimized_positions_one_day = ideal_positions_weighted / weight_per_contract_one_day
 
-    annualized_volatilities = np.diag(covariance_matrix_one_day) * DAYS_IN_YEAR ** 0.5
-
-    risk_limited_positions = position_limit_aggregator(
-        optimized_positions_one_day, notional_exposure_per_contract_one_day, annualized_volatilities,
-        instrument_weight_one_day, volume_one_day, additional_data)
+    risk_limited_positions = np.minimum(
+        position_limit_fn(
+            capital, notional_exposure_per_contract_one_day, instrument_weight_one_day,
+            covariance_matrix_one_day, volume_one_day, additional_data
+        ),
+        optimized_positions_one_day
+    )
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 
-    portfolio_risk_limited_positions = portfolio_multiplier_fn(
+    portfolio_risk_limited_positions = risk_limited_positions * portfolio_multiplier_fn(
         risk_limited_positions_weighted, covariance_matrix_one_day, 
         jump_covariance_matrix_one_day, date=additional_data[1])
 
@@ -189,7 +191,7 @@ def dyn_opt(
         cost_per_contract : float,
         asymmetric_risk_buffer : float,
         cost_penalty_scalar : float,
-        position_limit_aggregator : Callable,
+        position_limit_fn : Callable,
         portfolio_multiplier_fn : Callable) -> Portfolio[Future]:
     
     unadj_prices = pd.DataFrame([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments])
@@ -238,7 +240,7 @@ def dyn_opt(
             cost_penalty_scalar,
             (portfolio.instruments, date),
             True,
-            position_limit_aggregator,
+            position_limit_fn,
             portfolio_multiplier_fn
         )
 

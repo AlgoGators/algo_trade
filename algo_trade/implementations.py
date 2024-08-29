@@ -6,7 +6,7 @@ from algo_trade.instrument import Instrument, Future, RollType, ContractType, Ag
 from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals
 from algo_trade.risk_measures import GARCH
 from algo_trade.dyn_opt import dyn_opt
-from algo_trade.risk_limits import portfolio_multiplier, PositionLimit
+from algo_trade.risk_limits import portfolio_multiplier, position_limit
 
 class TrendFollowing(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_target: float, capital: float):
@@ -29,14 +29,13 @@ class TrendFollowing(Strategy[Future]):
                 asymmetric_risk_buffer=0.05, 
                 cost_penalty_scalar=10, 
                 position_limit_aggregator=partial(
-                    PositionLimit.position_limit_aggregator,
-                    maximum_position_leverage=2.0,
-                    capital=capital,
+                    position_limit,
+                    max_leverage_ratio=2.0,
+                    minimum_volume=100,
+                    max_forecast_ratio=2.0,
+                    max_forecast_buffer=0.5,
                     IDM=2.5,
                     tau=risk_target,
-                    maximum_forecast_ratio=2.0,
-                    minimum_volume=100,
-                    max_forecast_buffer=0.5
                 ),
                 portfolio_multiplier_fn=partial(
                     portfolio_multiplier,
