@@ -30,7 +30,7 @@ def minimum_volatility(max_forecast_ratio : float, IDM : float, tau : float, max
     return annualized_volatility >= (max_forecast_ratio * IDM * instrument_weight * tau) / maximum_leverage
 
 class PortfolioMultiplier:
-    def max_leverage_portfolio_multiplier(maximum_portfolio_leverage : float, positions_weighted : np.ndarray) -> float:
+    def max_leverage_portfolio_multiplier(positions_weighted : np.ndarray, maximum_portfolio_leverage : float) -> float:
         """
         Returns the positions scaled by the max leverage limit
 
@@ -47,7 +47,7 @@ class PortfolioMultiplier:
 
         return scalar
 
-    def correlation_risk_portfolio_multiplier(maximum_portfolio_correlation_risk : float, positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
+    def correlation_risk_portfolio_multiplier(positions_weighted : np.ndarray, annualized_volatility : np.ndarray, maximum_portfolio_correlation_risk : float) -> float:
         """
         Returns the positions scaled by the correlation risk limit
 
@@ -65,9 +65,9 @@ class PortfolioMultiplier:
         return scalar
 
     def portfolio_risk_multiplier(
-            maximum_portfolio_volatility : float, 
             positions_weighted : np.ndarray, 
-            covariance_matrix : np.ndarray) -> float:
+            covariance_matrix : np.ndarray,
+            maximum_portfolio_volatility : float) -> float:
         """
         Returns the positions scaled by the portfolio volatility limit
 
@@ -86,7 +86,7 @@ class PortfolioMultiplier:
 
         return scalar
 
-    def jump_risk_multiplier(maximum_portfolio_jump_risk : float, positions_weighted : np.ndarray, jump_covariance_matrix) -> float:
+    def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray, maximum_portfolio_jump_risk : float) -> float:
         """
         Returns the positions scaled by the jump risk limit
 
@@ -110,11 +110,11 @@ class PortfolioMultiplier:
             positions_weighted : np.ndarray, 
             covariance_matrix : np.ndarray, 
             jump_covariance_matrix : np.ndarray,
+            date : datetime.datetime,
             maximum_portfolio_leverage : float,
             maximum_correlation_risk : float,
             maximum_portfolio_risk : float,
-            maximum_jump_risk : float,
-            date : datetime.datetime) -> np.ndarray:
+            maximum_jump_risk : float) -> np.ndarray:
 
         annualized_volatilities = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
@@ -135,7 +135,7 @@ class PortfolioMultiplier:
         return positions * min(leverage_multiplier, correlation_multiplier, volatility_multiplier, jump_multiplier)
 
 class PositionLimit:
-    def max_leverage_position_limit(maximum_leverage : float, capital : float, notional_exposure_per_contract : float | np.ndarray) -> float | np.ndarray:
+    def max_leverage_position_limit(maximum_leverage : float, capital : float, notional_exposure_per_contract : np.ndarray) -> np.ndarray:
         """
         Returns the lesser of the max leverage limit and the number of contracts to be traded
         (works for both single instruments and arrays)
@@ -146,7 +146,7 @@ class PositionLimit:
                 the max acceptable leverage for a given instrument
             capital : float
                 the total capital allocated to the portfolio
-            notional_exposure_per_contract : float | np.ndarray
+            notional_exposure_per_contract : np.ndarray
                 the notional exposure per contract for the instrument
         """
         return maximum_leverage * capital / notional_exposure_per_contract
@@ -157,9 +157,9 @@ class PositionLimit:
             IDM : float, 
             tau : float,
             max_forecast_buffer : float,
-            instrument_weight : float | np.ndarray,
-            notional_exposure_per_contract : float | np.ndarray, 
-            annualized_volatility : float | np.ndarray) -> float | np.ndarray:
+            instrument_weight : np.ndarray,
+            notional_exposure_per_contract : np.ndarray, 
+            annualized_volatility : np.ndarray) -> np.ndarray:
         
         """
         Returns the lesser of the max forecast limit and the number of contracts to be traded
@@ -185,7 +185,7 @@ class PositionLimit:
         """
         return (1 + max_forecast_buffer) * maximum_forecast_ratio * capital * IDM * instrument_weight * tau / notional_exposure_per_contract / annualized_volatility
 
-    def max_pct_of_open_interest_position_limit(max_acceptable_pct_of_open_interest : float, open_interest : float | np.ndarray) -> float | np.ndarray:
+    def max_pct_of_open_interest_position_limit(max_acceptable_pct_of_open_interest : float, open_interest : np.ndarray) -> np.ndarray:
         """
         Returns the lesser of the max acceptable percentage of open interest and the number of contracts to be traded
         (works for both single instruments and arrays)
@@ -201,7 +201,7 @@ class PositionLimit:
                     DeprecationWarning, 2)
         return max_acceptable_pct_of_open_interest * open_interest
 
-    def volume_limit_positions(volume : float | np.ndarray, minimum_volume : float, positions : float | np.ndarray) -> float | np.ndarray:
+    def volume_limit_positions(volume : np.ndarray, minimum_volume : float, positions : np.ndarray) -> np.ndarray:
         """
         Returns the lesser of the minimum volume and the number of contracts to be traded
         (works for both single instruments and arrays)
@@ -219,19 +219,19 @@ class PositionLimit:
         return volume_mask * positions
 
     def position_limit_aggregator(
+        contracts : np.ndarray,
+        notional_exposure_per_contract : np.ndarray,
+        annualized_volatility : np.ndarray,
+        instrument_weight : np.ndarray,
+        volume : np.ndarray,
+        additional_data : tuple[list[str], datetime.datetime],
         maximum_position_leverage : float,
         capital : float,
         IDM : float,
         tau : float,
         maximum_forecast_ratio : float,
         minimum_volume : float,
-        max_forecast_buffer : float,
-        contracts : float | np.ndarray,
-        notional_exposure_per_contract : float | np.ndarray,
-        annualized_volatility : float | np.ndarray,
-        instrument_weight : float | np.ndarray,
-        volumes : float | np.ndarray,
-        additional_data : tuple[list[str], datetime.datetime]) -> float | np.ndarray:
+        max_forecast_buffer : float) -> np.ndarray:
         """
         Returns the minimum of the three position limits
         (works for both single instruments and arrays)
@@ -264,16 +264,11 @@ class PositionLimit:
             volumes : float | np.ndarray
                 the volume for the instrument
         """
-        if isinstance(contracts, (int, float)):
-            return min(
-                PositionLimit.max_leverage_position_limit(maximum_position_leverage, capital, notional_exposure_per_contract),
-                PositionLimit.max_forecast_position_limit(maximum_forecast_ratio, capital, IDM, tau, max_forecast_buffer, instrument_weight, notional_exposure_per_contract, annualized_volatility))
-        
         max_leverage_positions = PositionLimit.max_leverage_position_limit(maximum_position_leverage, capital, notional_exposure_per_contract)
         max_forecast_positions = PositionLimit.max_forecast_position_limit(maximum_forecast_ratio, capital, IDM, tau, max_forecast_buffer, instrument_weight, notional_exposure_per_contract, annualized_volatility)
-        volume_limited_positions = PositionLimit.volume_limit_positions(volumes, minimum_volume, contracts)
+        volume_limited_positions = PositionLimit.volume_limit_positions(volume, minimum_volume, contracts)
 
-        for max_leverage_position, max_forecast_position, volume, contract, instrument_name in zip(max_leverage_positions, max_forecast_positions, volumes, contracts, additional_data[0]):
+        for max_leverage_position, max_forecast_position, volume, contract, instrument_name in zip(max_leverage_positions, max_forecast_positions, volume, contracts, additional_data[0]):
             if contract > max_leverage_position:
                 logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, LogSubType.MAX_LEVERAGE, instrument_name, max_leverage_position))
             if contract > max_forecast_position:
