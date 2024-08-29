@@ -2,6 +2,7 @@ import numpy as np
 import datetime
 import logging
 import warnings
+from typing import Callable
 
 from algo_trade.risk_logging import LogMessage, LogSubType, LogType
 from algo_trade._constants import DAYS_IN_YEAR
@@ -29,28 +30,25 @@ def minimum_volatility(max_forecast_ratio : float, IDM : float, tau : float, max
     """
     return annualized_volatility >= (max_forecast_ratio * IDM * instrument_weight * tau) / maximum_leverage
 
-class PortfolioMultiplier:
-    def max_leverage_portfolio_multiplier(positions_weighted : np.ndarray, maximum_portfolio_leverage : float) -> float:
-        """
-        Returns the positions scaled by the max leverage limit
+def portfolio_multiplier(
+        max_portfolio_leverage : float, 
+        max_correlation_risk : float, 
+        max_portfolio_volatility : float,
+        max_portfolio_jump_risk : float) -> Callable:
 
+    def max_leverage(positions_weighted : np.ndarray) -> float:
+        """
         Parameters:
         ---
-            maximum_portfolio_leverage : float
-                the max acceptable leverage for the portfolio
             positions_weighted : np.ndarray
                 the notional exposure / position * # positions / capital
                 Same as dynamic optimization
         """
         leverage = np.sum(np.abs(positions_weighted))
-        scalar = np.minimum(maximum_portfolio_leverage / leverage, 1)
+        return max_portfolio_leverage / leverage
 
-        return scalar
-
-    def correlation_risk_portfolio_multiplier(positions_weighted : np.ndarray, annualized_volatility : np.ndarray, maximum_portfolio_correlation_risk : float) -> float:
+    def correlation_risk(positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
         """
-        Returns the positions scaled by the correlation risk limit
-
         Parameters:
         ---
             positions_weighted : np.ndarray
@@ -60,21 +58,12 @@ class PortfolioMultiplier:
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
         """
         correlation_risk = np.sum(np.abs(positions_weighted) * annualized_volatility)
-        scalar = np.minimum(1, maximum_portfolio_correlation_risk / correlation_risk)
-
-        return scalar
-
-    def portfolio_risk_multiplier(
-            positions_weighted : np.ndarray, 
-            covariance_matrix : np.ndarray,
-            maximum_portfolio_volatility : float) -> float:
+        return max_correlation_risk / correlation_risk
+    
+    def portfolio_risk(positions_weighted : np.ndarray, covariance_matrix : np.ndarray) -> float:
         """
-        Returns the positions scaled by the portfolio volatility limit
-
         Parameters:
         ---
-            maximum_portfolio_volatility : float
-                the max acceptable volatility for the portfolio
             positions_weighted : np.ndarray
                 the notional exposure / position * # positions / capital
                 Same as dynamic optimization
@@ -82,14 +71,10 @@ class PortfolioMultiplier:
                 the covariances between the instrument returns
         """
         portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
-        scalar = np.minimum(1, maximum_portfolio_volatility / portfolio_volatility)
+        return max_portfolio_volatility / portfolio_volatility
 
-        return scalar
-
-    def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray, maximum_portfolio_jump_risk : float) -> float:
+    def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
         """
-        Returns the positions scaled by the jump risk limit
-
         Parameters:
         ---
             maximum_portfolio_jump_risk : float
@@ -101,38 +86,31 @@ class PortfolioMultiplier:
                 the jumps in the instrument returns
         """
         jump_risk = np.sqrt(positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
-        scalar = np.minimum(1, maximum_portfolio_jump_risk / jump_risk)
+        return max_portfolio_jump_risk / jump_risk
 
-        return scalar
-
-    def portfolio_risk_aggregator(
-            positions : np.ndarray,
-            positions_weighted : np.ndarray, 
-            covariance_matrix : np.ndarray, 
+    def fn(
+            positions_weighted : np.ndarray,
+            covariance_matrix : np.ndarray,
             jump_covariance_matrix : np.ndarray,
-            date : datetime.datetime,
-            maximum_portfolio_leverage : float,
-            maximum_correlation_risk : float,
-            maximum_portfolio_risk : float,
-            maximum_jump_risk : float) -> np.ndarray:
+            date : datetime.datetime) -> float:
+        
+        annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
-        annualized_volatilities = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
+        scalars = {
+            LogSubType.LEVERAGE_MULTIPLIER : max_leverage(positions_weighted), 
+            LogSubType.CORRELATION_MULTIPLIER : correlation_risk(positions_weighted, annualized_volatility),
+            LogSubType.VOLATILITY_MULTIPLIER : portfolio_risk(positions_weighted, covariance_matrix),
+            LogSubType.JUMP_MULTIPLIER : jump_risk_multiplier(positions_weighted, jump_covariance_matrix)}
 
-        leverage_multiplier = PortfolioMultiplier.max_leverage_portfolio_multiplier(maximum_portfolio_leverage, positions_weighted)
-        correlation_multiplier = PortfolioMultiplier.correlation_risk_portfolio_multiplier(maximum_correlation_risk, positions_weighted, annualized_volatilities)
-        volatility_multiplier = PortfolioMultiplier.portfolio_risk_multiplier(maximum_portfolio_risk, positions_weighted, covariance_matrix)
-        jump_multiplier = PortfolioMultiplier.jump_risk_multiplier(maximum_jump_risk, positions_weighted, jump_covariance_matrix)
+        portfolio_scalar = 1
+        for key, value in scalars.items():
+            if value < 1:
+                portfolio_scalar = value
+                logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, key, None, value))
 
-        if leverage_multiplier < 1:
-            logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, LogSubType.LEVERAGE_MULTIPLIER, None, leverage_multiplier))
-        if correlation_multiplier < 1:
-            logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, LogSubType.CORRELATION_MULTIPLIER, None, correlation_multiplier))
-        if volatility_multiplier < 1:
-            logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, LogSubType.VOLATILITY_MULTIPLIER, None, volatility_multiplier))
-        if jump_multiplier < 1:
-            logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, LogSubType.JUMP_MULTIPLIER, None, jump_multiplier))
+        return portfolio_scalar
 
-        return positions * min(leverage_multiplier, correlation_multiplier, volatility_multiplier, jump_multiplier)
+    return fn
 
 class PositionLimit:
     def max_leverage_position_limit(maximum_leverage : float, capital : float, notional_exposure_per_contract : np.ndarray) -> np.ndarray:

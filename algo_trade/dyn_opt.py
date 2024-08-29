@@ -147,7 +147,7 @@ def single_day_optimization(
         additional_data : tuple[list[str], list[datetime.datetime]],
         optimization : bool,
         position_limit_aggregator : Callable,
-        portfolio_risk_aggregator : Callable) -> np.ndarray:
+        portfolio_multiplier_fn : Callable) -> np.ndarray:
 
     covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(covariances_one_day)
     jump_covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(jump_covariances_one_day)
@@ -177,9 +177,9 @@ def single_day_optimization(
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 
-    portfolio_risk_limited_positions = portfolio_risk_aggregator(
-        risk_limited_positions, risk_limited_positions_weighted, 
-        covariance_matrix_one_day, jump_covariance_matrix_one_day, date=additional_data[1])
+    portfolio_risk_limited_positions = portfolio_multiplier_fn(
+        risk_limited_positions_weighted, covariance_matrix_one_day, 
+        jump_covariance_matrix_one_day, date=additional_data[1])
 
     return round_multiple(portfolio_risk_limited_positions, 1) if optimization else portfolio_risk_limited_positions
 
@@ -190,7 +190,7 @@ def dyn_opt(
         asymmetric_risk_buffer : float,
         cost_penalty_scalar : float,
         position_limit_aggregator : Callable,
-        portfolio_multiplier_aggregator : Callable) -> Portfolio[Future]:
+        portfolio_multiplier_fn : Callable) -> Portfolio[Future]:
     
     unadj_prices = pd.DataFrame([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments])
     covariances = portfolio.risk_object.get_cov()
@@ -239,7 +239,7 @@ def dyn_opt(
             (portfolio.instruments, date),
             True,
             position_limit_aggregator,
-            portfolio_multiplier_aggregator
+            portfolio_multiplier_fn
         )
 
         return optimized_positions
