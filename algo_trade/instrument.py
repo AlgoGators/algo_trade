@@ -3,9 +3,8 @@ from typing import Any, Dict, Tuple, Optional
 from abc import ABC
 import databento as db
 import pandas as pd
-import toml
-from enum import Enum
-
+import toml 
+from enum import Enum 
 from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
 
 # Building out class structure to backadjust the futures data
@@ -359,11 +358,10 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
     return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'])) for n, row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
-    lst = initialize_instruments(pd.read_csv('data/contract.csv'))
+    # lst = initialize_instruments(pd.read_csv('data/contract.csv'))
     # Testing the Bar class
-    quit()
 
     # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    future: Future = Future("ES", "CME")
-    future.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
-    exp = future.get_front().expiration
+    ex: str = "CME"
+    bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
+    [Future(symbol, ex).add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT) for symbol in bucket]
