@@ -11,6 +11,8 @@ from algo_trade.portfolio import Portfolio
 from algo_trade.implementations import TrendFollowing
 from algo_trade.instrument import Future, RollType, ContractType, Agg, initialize_instruments
 from algo_trade.pnl import PnL
+import pandas as pd
+from pathlib import Path
 
 
 def main():
@@ -26,6 +28,14 @@ def main():
     None
     """
 
+    # Find the list of instruments to trade
+    contract_path: Path = Path("data/contract.csv")
+    if not contract_path.exists():
+        raise FileNotFoundError(f"Contract file not found at {contract_path}")
+
+    # Load the instruments
+    instruments_dataframe: pd.DataFrame = pd.read_csv(contract_path)
+
     # Initialize the instruments
     instruments: list[Future] = initialize_instruments()
     
@@ -35,17 +45,3 @@ def main():
             (1.0, TrendFollowing(instruments, risk_target=0.05, capital=1000000))
         ]
     )
-    
-    # Find the positions
-    portfolio.find_positions()
-    
-    # Optimize the portfolio
-    portfolio.optimize()
-    
-    # Calculate the PnL
-    pnl = PnL(portfolio=portfolio)
-    pnl.calculate()
-    
-    # Print the PnL
-    print(pnl)
-
