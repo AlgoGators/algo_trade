@@ -13,7 +13,6 @@ from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
 
-
 base_dir = os.path.dirname(os.path.dirname(__file__))
 config_dir = os.path.join(base_dir, "config")
 config_path = os.path.join(config_dir, "config.toml")

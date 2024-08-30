@@ -1,7 +1,6 @@
 import numpy as np
 import datetime
 import logging
-import warnings
 from typing import Callable
 
 from algo_trade.risk_logging import LogMessage, LogSubType, LogType

@@ -41,7 +41,7 @@ class PnL:
     def get_sharpe_ratio(self, aggregate : bool = True) -> pd.Series:
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return returns.mean() / returns.std() * DAYS_IN_YEAR ** 0.5
-    
+
     def get_volatility(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         if timespan == self.Timespan.DAILY:
@@ -50,7 +50,7 @@ class PnL:
             return returns.std() * DAYS_IN_YEAR ** 0.5
         else: 
             raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
-    
+
     def get_mean_return(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
         if timespan == self.Timespan.DAILY:
             returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
