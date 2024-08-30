@@ -1,11 +1,12 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
-from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
-
 import databento as db
 import pandas as pd
 import toml
+from enum import Enum
+
+from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
 
 # Building out class structure to backadjust the futures data
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -14,8 +15,7 @@ config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
 
-
-class Instrument(ABC):
+class Instrument():
     """
     Instrument class to act as a base class for all asset classes
 
@@ -32,13 +32,16 @@ class Instrument(ABC):
 
     """
 
-    def __init__(self, symbol: str, dataset: str):
+    def __init__(self, symbol: str, dataset: str, instrument_type: Optional[ASSET] = None):
         self._symbol = symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(
             config["databento"]["api_historical"]
         )
         self.asset: ASSET
+
+        if instrument_type is not None:
+            self.__class__ = instrument_type.value
 
     @property
     def symbol(self) -> str:
@@ -326,11 +329,14 @@ class Future(Instrument):
         elif contract_type == ContractType.BACK:
             self.back = contract
 
+class InstrumentType(Enum):
+    FUTURE = Future
+
+def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
+    return [Instrument(row.dataSymbol, row.dataSet, row.instrumentType) for row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
     # Testing the Bar class
-    # Set sys.path to the base directory
-    import sys
 
     # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     future: Future = Future("ES", "CME")
