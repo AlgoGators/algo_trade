@@ -32,7 +32,7 @@ class Instrument():
 
     """
 
-    def __init__(self, symbol: str, dataset: str, instrument_type: Optional[ASSET] = None):
+    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None):
         self._symbol = symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(
@@ -332,11 +332,36 @@ class Future(Instrument):
 class InstrumentType(Enum):
     FUTURE = Future
 
+    @classmethod
+    def from_str(cls, value: str) -> "InstrumentType":
+        """
+        Converts a string to a InstrumentType enum based on the value to the Enum name and not value
+        so "FUTURE" -> FUTURE
+
+        Args:
+            - value: str - The value to convert to a InstrumentType enum
+
+        Returns:
+            - InstrumentType: The InstrumentType enum
+        """
+        try:
+            return cls[value.upper()]
+        except ValueError:
+
+            for member in cls:
+                if member.name.lower() == value.lower():
+                    return member
+
+            raise ValueError(f"{value} is not a valid {cls.__name__}")
+    
+
 def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
-    return [Instrument(row.dataSymbol, row.dataSet, row.instrumentType) for row in instrument_df.iterrows()]
+    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'])) for n, row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
+    lst = initialize_instruments(pd.read_csv('data/contract.csv'))
     # Testing the Bar class
+    quit()
 
     # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     future: Future = Future("ES", "CME")
