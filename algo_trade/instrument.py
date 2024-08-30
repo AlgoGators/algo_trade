@@ -364,4 +364,11 @@ if __name__ == "__main__":
     # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     ex: str = "CME"
     bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
-    [Future(symbol, ex).add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT) for symbol in bucket]
+    futures: list[Future] = []
+    for sym in bucket:
+        fut: Future = Future(symbol=sym, dataset=ex)
+        fut.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
+        futures.append(fut)
+    
+    print(futures)
+

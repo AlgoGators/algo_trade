@@ -13,14 +13,14 @@ class TrendFollowing(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_target: float, capital: float):
         super().__init__(capital=capital)
         self.instruments: list[Future] = instruments
-        
+
         self.risk_object = GARCH(
             risk_target=risk_target,
             instruments=instruments,
             weights=(0.01, 0.01, 0.98),
             minimum_observations=100
         )
-        
+
         self.rules = [
             partial(risk_parity, risk_object=self.risk_object),
             partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
