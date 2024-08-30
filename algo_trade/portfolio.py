@@ -19,16 +19,26 @@ config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
 
-T = TypeVar('T', bound='Instrument')
+T = TypeVar('T', bound=Instrument)
 
 class Portfolio(ABC, Generic[T]):
-    def __init__(self, instruments : list[T], weighted_strategies : list[tuple[float, Strategy]], capital : float, multipliers : pd.DataFrame = None):
-        self.instruments : list[T] = instruments
-        self.weighted_strategies : list[tuple[float, Strategy]] = weighted_strategies
-        self.capital : float = capital
-        self.risk_object : RiskMeasure = None
-        self.portfolio_rules : list[Callable] = []
-        self.multipliers : pd.DataFrame = multipliers if multipliers is not None else pd.DataFrame(columns=[instrument.name for instrument in instruments], data=np.ones((1, len(instruments))))
+    def __init__(self):
+        self.instruments : list[T] = None
+        self.weighted_strategies : list[tuple[float, Strategy]]
+        self.capital : float
+        self.risk_object : RiskMeasure
+        self.portfolio_rules : list[Callable]
+        self.multipliers : pd.DataFrame
+
+    @property
+    def multipliers(self):
+        if not hasattr(self, '_multipliers'):
+            if self.instruments is None:
+                raise ValueError("No instruments in the portfolio")
+
+            self._multipliers = pd.DataFrame(columns=[instrument.name for instrument in self.instruments], data=np.ones((1, len(self.instruments))))
+        
+        return self._multipliers    
 
     @property
     def prices(self):
@@ -50,6 +60,9 @@ class Portfolio(ABC, Generic[T]):
             for weight, strategy in self.weighted_strategies:
                 df = strategy.positions * weight
                 self._positions = df if self._positions.empty else self._positions + df
+
+            for rule in self.portfolio_rules:
+                self._positions = rule(self)
 
         return self._positions
     
