@@ -31,13 +31,14 @@ class Instrument():
 
     """
 
-    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None):
+    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0):
         self._symbol = symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(
             config["databento"]["api_historical"]
         )
         self.asset: ASSET
+        self.multiplier = multiplier
 
         if instrument_type is not None:
             self.__class__ = instrument_type.value
@@ -355,7 +356,7 @@ class InstrumentType(Enum):
     
 
 def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
-    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'])) for n, row in instrument_df.iterrows()]
+    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'], row.loc['multiplier'])) for n, row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
     # lst = initialize_instruments(pd.read_csv('data/contract.csv'))

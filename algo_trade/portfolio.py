@@ -27,8 +27,7 @@ class Portfolio(ABC, Generic[T]):
         self.weighted_strategies : list[tuple[float, Strategy]]
         self.capital : float
         self.risk_object : RiskMeasure
-        self.portfolio_rules : list[Callable]
-        self.multipliers : pd.DataFrame
+        self.portfolio_rules : list[Callable] = []
 
     @property
     def multipliers(self):
@@ -36,9 +35,13 @@ class Portfolio(ABC, Generic[T]):
             if self.instruments is None:
                 raise ValueError("No instruments in the portfolio")
 
-            self._multipliers = pd.DataFrame(columns=[instrument.name for instrument in self.instruments], data=np.ones((1, len(self.instruments))))
+            multipliers = {}
+            for instrument in self.instruments:
+                multipliers[instrument.name] = instrument.multiplier
+
+            self._multipliers = pd.DataFrame(multipliers, index=[0])
         
-        return self._multipliers    
+        return self._multipliers
 
     @property
     def prices(self):
