@@ -119,7 +119,7 @@ def position_limit(
         IDM : float,
         tau : float) -> Callable:
 
-    def max_leverage(capital : float, notional_exposure_per_contract : np.ndarray):
+    def max_leverage(capital : float, notional_exposure_per_contract : np.ndarray) -> np.ndarray:
         """
         Parameters:
         ---
@@ -132,7 +132,7 @@ def position_limit(
         """
         return max_leverage_ratio * capital / notional_exposure_per_contract
 
-    def max_forecast(capital : float, notional_exposure_per_contract : np.ndarray, instrument_weight : np.ndarray, annualized_volatility : np.ndarray):
+    def max_forecast(capital : float, notional_exposure_per_contract : np.ndarray, instrument_weight : np.ndarray, annualized_volatility : np.ndarray) -> np.ndarray:
         """
         Parameters:
         ---
@@ -154,7 +154,7 @@ def position_limit(
         """
         return (1 + max_forecast_buffer) * max_forecast_ratio * capital * IDM * instrument_weight * tau / notional_exposure_per_contract / annualized_volatility
 
-    def min_volume(volume : np.ndarray):
+    def min_volume(volume : np.ndarray) -> np.ndarray:
         """
         Parameters:
         ---
@@ -183,11 +183,12 @@ def position_limit(
             LogSubType.MINIMUM_VOLUME : min_volume(volume)
         }
 
-        max_position : float = float('inf')
-        for key, value in max_positions.items():
-            if value < max_position:
-                max_position = value
-                logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0], value))
+        max_position : float = 1_000_000
+        for key, array in max_positions.items():
+            for value in array:
+                if abs(value) < abs(max_position):
+                    max_position = value
+                    logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0], value))
 
         return max_position
 
