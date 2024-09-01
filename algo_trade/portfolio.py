@@ -44,7 +44,7 @@ class Portfolio(ABC, Generic[T]):
         return self._multipliers
 
     @property
-    def prices(self):
+    def prices(self) -> pd.DataFrame:
         if not hasattr(self, '_prices'):
             self._prices = pd.DataFrame()
             instrument : Instrument
@@ -64,6 +64,8 @@ class Portfolio(ABC, Generic[T]):
                 df = strategy.positions * weight
                 self._positions = df if self._positions.empty else self._positions + df
 
+            self._positions /= self.multipliers.iloc[0] # Divide by multipliers
+
             for rule in self.portfolio_rules:
                 self._positions = rule(self)
 
@@ -72,6 +74,10 @@ class Portfolio(ABC, Generic[T]):
     @positions.setter
     def positions(self, value):
         self._positions = value
+
+    @property
+    def exposure(self) -> pd.DataFrame:
+        return self.positions * self.prices * self.multipliers.iloc[0]
 
     @property
     def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
