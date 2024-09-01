@@ -74,10 +74,12 @@ def buffer_weights(optimized : np.ndarray, held : np.ndarray, weights : np.ndarr
     tracking_error_buffer = tau * asymmetric_risk_buffer
 
     # If the tracking error is less than the buffer, we don't need to do anything
-    if tracking_error < tracking_error_buffer:
+    if tracking_error < tracking_error_buffer or tracking_error == 0:
         return held
 
     adjustment_factor = max((tracking_error - tracking_error_buffer) / tracking_error, 0.0)
+    if np.isnan(adjustment_factor):
+        raise ValueError(f"Invalid value encountered in scalar divide: tracking_error={tracking_error}")
 
     required_trades = round_multiple((optimized - held) * adjustment_factor, weights)
 
@@ -196,13 +198,13 @@ def dyn_opt(
     covariances = portfolio.risk_object.get_cov()
     jump_covariances : pd.DataFrame = portfolio.risk_object.get_jump_cov(0.95, 100)
     volume = pd.concat([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
+    
+    costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64).fillna(cost_per_contract)
+    
+    portfolio.positions, costs_per_contract, covariances, jump_covariances, volume, unadj_prices,instrument_weights = reindex((portfolio.positions, costs_per_contract, covariances, jump_covariances, volume, unadj_prices, instrument_weights))
 
     notional_exposure_per_contract = unadj_prices * portfolio.multipliers.iloc[0]
     weight_per_contract = notional_exposure_per_contract / portfolio.capital
-
-    costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64).fillna(cost_per_contract)
-
-    portfolio.positions, weight_per_contract, costs_per_contract, covariances, jump_covariances, volume = reindex((portfolio.positions, weight_per_contract, costs_per_contract, covariances, jump_covariances, volume))
 
     optimized_positions = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64)
 
@@ -220,7 +222,7 @@ def dyn_opt(
 
         if n != 0:
             current_date_IDX = portfolio.positions.index.get_loc(date)
-            held_positions_vector = portfolio.positions.iloc[current_date_IDX - 1].values
+            held_positions_vector = optimized_positions.iloc[current_date_IDX - 1].values
 
         optimized_positions.iloc[n] = single_day_optimization(
             held_positions_vector,
