@@ -7,6 +7,7 @@ from algo_trade.instrument import Instrument, Future
 from algo_trade._constants import DAYS_IN_YEAR
 
 class _utils:
+    @staticmethod
     def ffill_zero(df: pd.DataFrame) -> pd.DataFrame:
         """
         Forward fill zeros in a DataFrame. This function will replace all zeros with the last non-zero value in the DataFrame.
@@ -19,7 +20,13 @@ class _utils:
         # Iterate over each column and replace NaN values below the first non-NaN index with 0
         for column in df.columns:
             first_index = first_non_nan_index[column]
-            df.loc[first_index:, column] = df.loc[first_index:, column].fillna(0)
+            if first_index is not None:
+                # Extract the relevant part of the column as a Series
+                series_to_fill = df.loc[first_index:, column]
+                # Fill NaNs with 0
+                filled_series = series_to_fill.fillna(0)
+                # Reassign the filled series back to the DataFrame
+                df.loc[first_index:, column] = filled_series.values
 
         return df
 
