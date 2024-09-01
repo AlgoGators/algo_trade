@@ -2,12 +2,11 @@ import unittest
 from functools import partial
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 from algo_trade.dyn_opt import dyn_opt, single_day_optimization
 from algo_trade.contract import Contract
 from algo_trade.portfolio import Portfolio
-from algo_trade.instrument import Future, RollType, ContractType, Agg
+from algo_trade.instrument import Future, Agg
 from algo_trade.risk_measures import GARCH, RiskMeasure
 from algo_trade.strategy import Strategy
 from algo_trade.rules import capital_scaling, equal_weight, risk_parity
