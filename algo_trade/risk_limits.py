@@ -174,7 +174,7 @@ def position_limit(
             covariance_matrix : np.ndarray,
             volume : np.ndarray,
             additional_data : tuple[list[str], datetime.datetime]):
-        
+
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
         max_positions = {
@@ -183,13 +183,13 @@ def position_limit(
             LogSubType.MINIMUM_VOLUME : min_volume(volume)
         }
 
-        max_position : float = 1_000_000
+        current_max_positions : float = [np.inf for _ in range(len(notional_exposure_per_contract))]
         for key, array in max_positions.items():
-            for value in array:
-                if abs(value) < abs(max_position):
-                    max_position = value
-                    logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0], value))
+            for index, value in enumerate(array):
+                if abs(value) < abs(current_max_positions[index]):
+                    current_max_positions[index] = value
+                    logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0][index], value))
 
-        return max_position
+        return current_max_positions
 
     return fn
