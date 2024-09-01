@@ -62,6 +62,26 @@ class PnL:
             return cagr
         raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
 
+    @property
+    def information_ratio(self) -> ... :
+        raise NotImplementedError()
+    
+    @property
+    def drawdown(self) -> ... :
+        raise NotImplementedError()
+    
+    def plot(self) -> None:
+        raise NotImplementedError()
+    
+    
+    def tracking_error(self, other : pd.Series) -> ... :
+        """Returns the tracking error between the PnL of the portfolio and another series (or maybe another PnL object?)"""
+        raise NotImplementedError()
+    
+    def regression(self, other : pd.Series) -> ... :
+        """Returns the regression between the PnL of the portfolio and another series (or maybe another PnL object?)"""
+        raise NotImplementedError()
+
     def __portfolio_percent_returns(self, capital : float) -> pd.Series:
         capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)
         return capital_series / capital_series.shift(1) - 1
