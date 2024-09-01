@@ -3,11 +3,10 @@ import numpy as np
 import datetime
 import logging
 from typing import Callable
+from functools import reduce
 
 from algo_trade.portfolio import Portfolio
-from algo_trade.instrument import Instrument, Future
-from algo_trade.risk_measures import RiskMeasure
-from algo_trade._constants import DAYS_IN_YEAR
+from algo_trade.instrument import Future
 from algo_trade.risk_logging import CsvFormatter
 
 logging.basicConfig(
@@ -19,14 +18,13 @@ logger = logging.getLogger(__name__)
 logging.root.handlers[0].setFormatter(CsvFormatter())
 
 
-def reindex(dfs : tuple, inplace=False) -> tuple[pd.DataFrame] | None:
-    intersection = pd.Index.intersection(*[df.index for df in dfs if isinstance(df, pd.DataFrame)])
-    if not inplace:
-        return tuple(df.reindex(intersection) for df in dfs)
+def reindex(dfs : tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
+    dfs = [df.set_index(pd.to_datetime(df.index)).astype(np.float64).ffill().dropna() for df in dfs]
+    intersection_index = reduce(lambda x, y: x.intersection(y), [df.index for df in dfs if isinstance(df, pd.DataFrame)])
 
-    for df in dfs:
-        df.drop(index=df.index.difference(intersection), inplace=True)
-        df.reindex(intersection, copy=False)
+    dfs = [df.loc[intersection_index] for df in dfs]
+
+    return dfs
 
 def get_cost_penalty(x_weighted : np.ndarray, y_weighted : np.ndarray, weighted_cost_per_contract : np.ndarray, cost_penalty_scalar : int) -> float:
     """Finds the trading cost to go from x to y, given the weighted cost per contract and the cost penalty scalar"""
@@ -78,12 +76,12 @@ def buffer_weights(optimized : np.ndarray, held : np.ndarray, weights : np.ndarr
     # If the tracking error is less than the buffer, we don't need to do anything
     if tracking_error < tracking_error_buffer:
         return held
-    
+
     adjustment_factor = max((tracking_error - tracking_error_buffer) / tracking_error, 0.0)
 
-    required_trades = (optimized - held) * adjustment_factor
+    required_trades = round_multiple((optimized - held) * adjustment_factor, weights)
 
-    return round_multiple(held + required_trades, weights)
+    return held + required_trades
 
 # Might be worth framing this similar to scipy.minimize function in terms of argument names (or quite frankly, maybe just use scipy.minimize)
 def greedy_algorithm(ideal : np.ndarray, x0 : np.ndarray, weighted_costs_per_contract : np.ndarray, held : np.ndarray, weights_per_contract : np.ndarray, covariance_matrix : np.ndarray, cost_penalty_scalar : int) -> np.ndarray:
@@ -194,17 +192,17 @@ def dyn_opt(
         position_limit_fn : Callable,
         portfolio_multiplier_fn : Callable) -> Portfolio[Future]:
     
-    unadj_prices = pd.DataFrame([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments])
+    unadj_prices = pd.concat([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
     covariances = portfolio.risk_object.get_cov()
-    jump_covariances : pd.DataFrame = portfolio.risk_object.get_jump_cov()
-    volume = pd.DataFrame([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments])
+    jump_covariances : pd.DataFrame = portfolio.risk_object.get_jump_cov(0.95, 100)
+    volume = pd.concat([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
 
     notional_exposure_per_contract = unadj_prices * portfolio.multipliers.iloc[0]
     weight_per_contract = notional_exposure_per_contract / portfolio.capital
 
-    costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).fillna(cost_per_contract)
+    costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64).fillna(cost_per_contract)
 
-    reindex((portfolio.positions, weight_per_contract, costs_per_contract, covariances, jump_covariances, volume, ), inplace=True)
+    portfolio.positions, weight_per_contract, costs_per_contract, covariances, jump_covariances, volume = reindex((portfolio.positions, weight_per_contract, costs_per_contract, covariances, jump_covariances, volume))
 
     optimized_positions = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64)
 
@@ -217,7 +215,7 @@ def dyn_opt(
     jump_covariance_matrix = jump_covariances.values
     instrument_weight_matrix = instrument_weights.values
 
-    for n, date in enumerate(portfolio.positions.index[1:]):
+    for n, date in enumerate(portfolio.positions.index):
         held_positions_vector = np.zeros(len(portfolio.instruments))
 
         if n != 0:
@@ -244,4 +242,4 @@ def dyn_opt(
             portfolio_multiplier_fn
         )
 
-        return optimized_positions
+    return optimized_positions
