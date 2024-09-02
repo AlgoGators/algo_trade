@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from typing import Callable, Generic, TypeVar
 
-from algo_trade.instrument import Instrument
+from algo_trade.instrument import Instrument, Future, RollType, ContractType, Agg
 from algo_trade.risk_measures import RiskMeasure
 
 T = TypeVar('T', bound='Instrument')
@@ -45,3 +45,14 @@ class Strategy(Generic[T], ABC):
         The Fetch data method is the a required initialization step within designing a strategy. This method is used to fetch the data for the instruments within the strategy. It is strategy specific and should be implemented by the user.
         """
         pass
+
+class FutureDataFetcher:
+    @staticmethod
+    def fetch_front(instruments : list[Future]) -> None:
+        for instrument in instruments:
+            instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
+    
+    @staticmethod
+    def fetch_back(instruments : list[Future]) -> None:
+        for instrument in instruments:
+            instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.BACK)

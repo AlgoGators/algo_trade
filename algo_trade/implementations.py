@@ -1,8 +1,8 @@
 from functools import partial
 
 from algo_trade.portfolio import Portfolio
-from algo_trade.strategy import Strategy
-from algo_trade.instrument import Instrument, Future, RollType, ContractType, Agg
+from algo_trade.strategy import Strategy, FutureDataFetcher
+from algo_trade.instrument import Instrument, Future
 from algo_trade.pnl import PnL
 from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals
 from algo_trade.risk_measures import GARCH, RiskMeasure
@@ -30,7 +30,7 @@ class TrendFollowing(Strategy[Future]):
         2. Backadjusted Prices (Close)
         """
         # Load the front calendar contract data with a daily aggregation
-        [instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT) for instrument in self.instruments]
+        FutureDataFetcher.fetch_front(self.instruments)
 
 
 ### Example Portfolio
