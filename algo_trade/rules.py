@@ -128,3 +128,6 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
             df = df.join(series.to_frame(), how="outer")
 
     return df
+
+def IDM(instruments: list[Future]) -> pd.DataFrame:
+    raise NotImplementedError("IDM not implemented")
