@@ -44,6 +44,8 @@ def portfolio_multiplier(
                 Same as dynamic optimization
         """
         leverage = np.sum(np.abs(positions_weighted))
+        if leverage == 0:
+            return np.float64(1)
         return min(max_portfolio_leverage / leverage, np.float64(1))
 
     def correlation_risk(positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
@@ -57,6 +59,8 @@ def portfolio_multiplier(
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
         """
         correlation_risk = np.sum(np.abs(positions_weighted) * annualized_volatility)
+        if correlation_risk == 0:
+            return np.float64(1)
         return min(max_correlation_risk / correlation_risk, np.float64(1))
     
     def portfolio_risk(positions_weighted : np.ndarray, covariance_matrix : np.ndarray) -> float:
@@ -70,6 +74,8 @@ def portfolio_multiplier(
                 the covariances between the instrument returns
         """
         portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
+        if portfolio_volatility == 0:
+            return np.float64(1)
         return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
 
     def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
@@ -85,6 +91,8 @@ def portfolio_multiplier(
                 the jumps in the instrument returns
         """
         jump_risk = np.sqrt(positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
+        if jump_risk == 0:
+            return np.float64(1)
         return min(max_portfolio_jump_risk / jump_risk, np.float64(1))
 
     def fn(
@@ -178,8 +186,8 @@ def position_limit(
 
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
-        positions_at_maximum_leverage = max_leverage(capital, abs(notional_exposure_per_contract))
-        positions_at_maximum_forecast = max_forecast(capital, abs(notional_exposure_per_contract), instrument_weight, annualized_volatility)
+        positions_at_maximum_leverage = abs(max_leverage(capital, notional_exposure_per_contract))
+        positions_at_maximum_forecast = abs(max_forecast(capital, notional_exposure_per_contract, instrument_weight, annualized_volatility))
         volume_mask = min_volume(volume)
 
         max_positions =  volume_mask * np.minimum(positions_at_maximum_leverage, positions_at_maximum_forecast)
@@ -195,7 +203,7 @@ def position_limit(
                         np.float64(0)))
 
         for position_at_maximum_leverage, position in zip(positions_at_maximum_leverage, positions):
-            if position > position_at_maximum_leverage:
+            if abs(position) > position_at_maximum_leverage:
                 logging.warning(
                     LogMessage(
                         additional_data[1],
@@ -205,7 +213,7 @@ def position_limit(
                         position_at_maximum_leverage))
          
         for position_at_maximum_forecast, position in zip(positions_at_maximum_forecast, positions):
-            if position > position_at_maximum_forecast:
+            if abs(position) > position_at_maximum_forecast:
                 logging.warning(
                     LogMessage(
                         additional_data[1],
