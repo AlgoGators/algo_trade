@@ -44,7 +44,7 @@ def portfolio_multiplier(
                 Same as dynamic optimization
         """
         leverage = np.sum(np.abs(positions_weighted))
-        return max_portfolio_leverage / leverage
+        return min(max_portfolio_leverage / leverage, np.float64(1))
 
     def correlation_risk(positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
         """
@@ -57,7 +57,7 @@ def portfolio_multiplier(
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
         """
         correlation_risk = np.sum(np.abs(positions_weighted) * annualized_volatility)
-        return max_correlation_risk / correlation_risk
+        return min(max_correlation_risk / correlation_risk, np.float64(1))
     
     def portfolio_risk(positions_weighted : np.ndarray, covariance_matrix : np.ndarray) -> float:
         """
@@ -70,7 +70,8 @@ def portfolio_multiplier(
                 the covariances between the instrument returns
         """
         portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
-        return max_portfolio_volatility / portfolio_volatility
+        print(portfolio_volatility)
+        return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
 
     def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
         """
@@ -85,7 +86,7 @@ def portfolio_multiplier(
                 the jumps in the instrument returns
         """
         jump_risk = np.sqrt(positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
-        return max_portfolio_jump_risk / jump_risk
+        return min(max_portfolio_jump_risk / jump_risk, np.float64(1))
 
     def fn(
             positions_weighted : np.ndarray,
@@ -101,7 +102,7 @@ def portfolio_multiplier(
             LogSubType.VOLATILITY_MULTIPLIER : portfolio_risk(positions_weighted, covariance_matrix),
             LogSubType.JUMP_MULTIPLIER : jump_risk_multiplier(positions_weighted, jump_covariance_matrix)}
 
-        portfolio_scalar = 1
+        portfolio_scalar = np.float64(1)
         for key, value in scalars.items():
             if value < 1:
                 portfolio_scalar = value
