@@ -1,4 +1,5 @@
 import numpy as np
+import types
 
 def PriceSeries(
         volatility : float,
@@ -33,3 +34,32 @@ def PriceSeries(
         prices[i] = prices[i-1] * (1 + expected_return + volatility * epsilon)
 
     return prices
+
+def MockNestedFunction(
+        outer : callable,
+        innerName : str,
+        **freeVars) -> callable:
+    """
+    Mock the inner functions of a given function with the provided free variables.
+
+    Parameters:
+    - outer (callable): The outer function whose inner functions are to be mocked.
+    - innerName (str): The name of the inner function to be mocked.
+    - freeVars (dict): Dictionary of free variables to be used in the inner function.
+
+    Returns:
+    - callable: The mocked function with the free variables.
+    """
+
+    def freeVar(val): # Yes there is something ironic about this
+        def nested():
+            return val
+        return nested.__closure__[0]
+
+    codeAttribute = '__code__'
+    if isinstance(outer, (types.FunctionType, types.MethodType)):
+        outer = outer.__getattribute__(codeAttribute)
+    for const in outer.co_consts:
+        if isinstance(const, types.CodeType) and const.co_name == innerName:
+            return types.FunctionType(const, globals(), None, None, tuple(
+                freeVar(freeVars[name]) for name in const.co_freevars))
