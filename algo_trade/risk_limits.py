@@ -70,7 +70,6 @@ def portfolio_multiplier(
                 the covariances between the instrument returns
         """
         portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
-        print(portfolio_volatility)
         return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
 
     def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
