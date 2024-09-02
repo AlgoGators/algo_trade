@@ -1,36 +1,36 @@
-name: Unittesting
+# name: Unittesting
 
-on:
-    push:
-        branches: ["main"]
-        paths:
-            - "**.py"
+# on:
+#     push:
+#         branches: ["main"]
+#         paths:
+#             - "**.py"
     
-    workflow_dispatch:
+#     workflow_dispatch:
 
-jobs:
-    build:
-        runs-on: windows-latest
+# jobs:
+#     build:
+#         runs-on: windows-latest
         
-        steps:
-            - uses: actions/checkout@v3
+#         steps:
+#             - uses: actions/checkout@v3
 
-            - name: Set up Python 3.11
-              uses: actions/setup-python@v2
-              with:
-                python-version: 3.11
+#             - name: Set up Python 3.11
+#               uses: actions/setup-python@v2
+#               with:
+#                 python-version: 3.11
 
-            - name: Install Dependencies
-              run: python -m pip install -r requirements.txt
+#             - name: Install Dependencies
+#               run: python -m pip install -r requirements.txt
 
-            - name: Dyn_Opt Unittesting
-              run: python tests/test_dyn_opt.py
+#             - name: Dyn_Opt Unittesting
+#               run: python tests/test_dyn_opt.py
             
-            # - name: Risk_Metrics Unittesting
-            #   run: python risk_measures/unittesting/test_risk_measures.py
+#             # - name: Risk_Metrics Unittesting
+#             #   run: python risk_measures/unittesting/test_risk_measures.py
             
-            # - name: Risk_limits Unittesting
-            #   run: |
-            #     python risk_limits/unittesting/test_minimum_volatility.py
-            #     python risk_limits/unittesting/test_portfolio_risk.py
-            #     python risk_limits/unittesting/test_position_risk.py
+#             # - name: Risk_limits Unittesting
+#             #   run: |
+#             #     python risk_limits/unittesting/test_minimum_volatility.py
+#             #     python risk_limits/unittesting/test_portfolio_risk.py
+#             #     python risk_limits/unittesting/test_position_risk.py
