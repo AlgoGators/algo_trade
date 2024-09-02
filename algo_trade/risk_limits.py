@@ -50,8 +50,8 @@ def portfolio_multiplier(
         """
         Parameters:
         ---
-            positions_weighted : np.ndarray
-                the notional exposure / position * # positions / capital
+            positions_weighted : np.ndarray (dollars allocated to each instrument)
+                the notional exposure * # positions / capital
                 Same as dynamic optimization
             annualized_volatility : np.ndarray
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
@@ -169,6 +169,7 @@ def position_limit(
 
     def fn(
             capital : float,
+            positions : np.ndarray,
             notional_exposure_per_contract : np.ndarray,
             instrument_weight : np.ndarray,
             covariance_matrix : np.ndarray,
@@ -177,19 +178,45 @@ def position_limit(
 
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
-        max_positions = {
-            LogSubType.MAX_LEVERAGE : max_leverage(capital, notional_exposure_per_contract),
-            LogSubType.MAX_FORECAST : max_forecast(capital, notional_exposure_per_contract, instrument_weight, annualized_volatility),
-            LogSubType.MINIMUM_VOLUME : min_volume(volume)
-        }
+        positions_at_maximum_leverage = max_leverage(capital, abs(notional_exposure_per_contract))
+        positions_at_maximum_forecast = max_forecast(capital, abs(notional_exposure_per_contract), instrument_weight, annualized_volatility)
+        volume_mask = min_volume(volume)
 
-        current_max_positions : float = [np.inf for _ in range(len(notional_exposure_per_contract))]
-        for key, array in max_positions.items():
-            for index, value in enumerate(array):
-                if abs(value) < abs(current_max_positions[index]):
-                    current_max_positions[index] = value
-                    logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0][index], value))
+        max_positions =  volume_mask * np.minimum(positions_at_maximum_leverage, positions_at_maximum_forecast)
 
-        return current_max_positions
+        for idx, _ in enumerate(volume_mask):
+            if volume_mask[idx] == 0:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MINIMUM_VOLUME,
+                        additional_data[0][idx],
+                        np.float64(0)))
+
+        for position_at_maximum_leverage, position in zip(positions_at_maximum_leverage, positions):
+            if position > position_at_maximum_leverage:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MAX_LEVERAGE,
+                        additional_data[0][np.where(positions == position)[0][0]],
+                        position_at_maximum_leverage))
+         
+        for position_at_maximum_forecast, position in zip(positions_at_maximum_forecast, positions):
+            if position > position_at_maximum_forecast:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MAX_FORECAST,
+                        additional_data[0][np.where(positions == position)[0][0]],
+                        position_at_maximum_forecast))
+     
+        sign_map = np.sign(positions)
+        minimum_position = np.minimum(abs(positions), max_positions) * sign_map
+
+        return minimum_position
 
     return fn
