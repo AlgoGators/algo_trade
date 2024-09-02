@@ -169,13 +169,10 @@ def single_day_optimization(
     else:
         optimized_positions_one_day = ideal_positions_weighted / weight_per_contract_one_day
 
-    risk_limited_positions = np.minimum(
-        position_limit_fn(
-            capital, notional_exposure_per_contract_one_day, instrument_weight_one_day,
+    risk_limited_positions = position_limit_fn(
+            capital, optimized_positions_one_day, notional_exposure_per_contract_one_day, instrument_weight_one_day,
             covariance_matrix_one_day, volume_one_day, additional_data
-        ),
-        optimized_positions_one_day
-    )
+        )
 
     risk_limited_positions_weighted = risk_limited_positions * weight_per_contract_one_day
 

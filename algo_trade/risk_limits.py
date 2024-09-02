@@ -44,20 +44,20 @@ def portfolio_multiplier(
                 Same as dynamic optimization
         """
         leverage = np.sum(np.abs(positions_weighted))
-        return max_portfolio_leverage / leverage
+        return min(max_portfolio_leverage / leverage, np.float64(1))
 
     def correlation_risk(positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
         """
         Parameters:
         ---
-            positions_weighted : np.ndarray
-                the notional exposure / position * # positions / capital
+            positions_weighted : np.ndarray (dollars allocated to each instrument)
+                the notional exposure * # positions / capital
                 Same as dynamic optimization
             annualized_volatility : np.ndarray
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
         """
         correlation_risk = np.sum(np.abs(positions_weighted) * annualized_volatility)
-        return max_correlation_risk / correlation_risk
+        return min(max_correlation_risk / correlation_risk, np.float64(1))
     
     def portfolio_risk(positions_weighted : np.ndarray, covariance_matrix : np.ndarray) -> float:
         """
@@ -70,7 +70,8 @@ def portfolio_multiplier(
                 the covariances between the instrument returns
         """
         portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
-        return max_portfolio_volatility / portfolio_volatility
+        print(portfolio_volatility)
+        return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
 
     def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
         """
@@ -85,7 +86,7 @@ def portfolio_multiplier(
                 the jumps in the instrument returns
         """
         jump_risk = np.sqrt(positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
-        return max_portfolio_jump_risk / jump_risk
+        return min(max_portfolio_jump_risk / jump_risk, np.float64(1))
 
     def fn(
             positions_weighted : np.ndarray,
@@ -101,7 +102,7 @@ def portfolio_multiplier(
             LogSubType.VOLATILITY_MULTIPLIER : portfolio_risk(positions_weighted, covariance_matrix),
             LogSubType.JUMP_MULTIPLIER : jump_risk_multiplier(positions_weighted, jump_covariance_matrix)}
 
-        portfolio_scalar = 1
+        portfolio_scalar = np.float64(1)
         for key, value in scalars.items():
             if value < 1:
                 portfolio_scalar = value
@@ -169,6 +170,7 @@ def position_limit(
 
     def fn(
             capital : float,
+            positions : np.ndarray,
             notional_exposure_per_contract : np.ndarray,
             instrument_weight : np.ndarray,
             covariance_matrix : np.ndarray,
@@ -177,19 +179,45 @@ def position_limit(
 
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
-        max_positions = {
-            LogSubType.MAX_LEVERAGE : max_leverage(capital, notional_exposure_per_contract),
-            LogSubType.MAX_FORECAST : max_forecast(capital, notional_exposure_per_contract, instrument_weight, annualized_volatility),
-            LogSubType.MINIMUM_VOLUME : min_volume(volume)
-        }
+        positions_at_maximum_leverage = max_leverage(capital, abs(notional_exposure_per_contract))
+        positions_at_maximum_forecast = max_forecast(capital, abs(notional_exposure_per_contract), instrument_weight, annualized_volatility)
+        volume_mask = min_volume(volume)
 
-        current_max_positions : float = [np.inf for _ in range(len(notional_exposure_per_contract))]
-        for key, array in max_positions.items():
-            for index, value in enumerate(array):
-                if abs(value) < abs(current_max_positions[index]):
-                    current_max_positions[index] = value
-                    logging.warning(LogMessage(additional_data[1], LogType.POSITION_LIMIT, key, additional_data[0][index], value))
+        max_positions =  volume_mask * np.minimum(positions_at_maximum_leverage, positions_at_maximum_forecast)
 
-        return current_max_positions
+        for idx, _ in enumerate(volume_mask):
+            if volume_mask[idx] == 0:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MINIMUM_VOLUME,
+                        additional_data[0][idx],
+                        np.float64(0)))
+
+        for position_at_maximum_leverage, position in zip(positions_at_maximum_leverage, positions):
+            if position > position_at_maximum_leverage:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MAX_LEVERAGE,
+                        additional_data[0][np.where(positions == position)[0][0]],
+                        position_at_maximum_leverage))
+         
+        for position_at_maximum_forecast, position in zip(positions_at_maximum_forecast, positions):
+            if position > position_at_maximum_forecast:
+                logging.warning(
+                    LogMessage(
+                        additional_data[1],
+                        LogType.POSITION_LIMIT,
+                        LogSubType.MAX_FORECAST,
+                        additional_data[0][np.where(positions == position)[0][0]],
+                        position_at_maximum_forecast))
+     
+        sign_map = np.sign(positions)
+        minimum_position = np.minimum(abs(positions), max_positions) * sign_map
+
+        return minimum_position
 
     return fn
