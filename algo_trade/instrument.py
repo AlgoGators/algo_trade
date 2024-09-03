@@ -5,7 +5,8 @@ import databento as db
 import pandas as pd
 import toml 
 from enum import Enum 
-from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
+
+from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
 # Building out class structure to backadjust the futures data
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -341,6 +342,32 @@ class Future(Instrument):
             self.price = contract.get_backadjusted()
         elif contract_type == ContractType.BACK:
             self.back = contract
+
+    def add_norgate_data(self, name: Optional[str] = None) -> None:
+        """
+        Adds data to the future instrument but first creates a bar object based on the schema
+
+        Args:
+        name: Optional[str] - The name of the bar
+
+        Returns:
+        None
+        """
+        contract: Contract = Contract(
+            instrument=self.symbol,
+            dataset=DATASET.from_str(self.dataset),
+            schema=Agg.DAILY,
+            catalog=CATALOG.NORGATE,
+        )
+
+        if name is None:
+            name = f"{contract.get_instrument()}"
+
+        contract.construct_norgate()
+
+        self.contracts[name] = contract
+        self.front = contract
+        self.price = contract.backadjusted
 
     @property
     def percent_returns(self) -> pd.Series:

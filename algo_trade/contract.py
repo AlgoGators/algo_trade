@@ -119,7 +119,6 @@ class Contract:
     -   get_close() -> pd.Series - Returns the close price of the bar as a series
     -   get_volume() -> pd.Series - Returns the volume of the bar as a series
     -   get_bar() -> pd.DataFrame - Returns the bar as a dataframe
-    -   get_backadjusted() -> pd.DataFrame - Returns the backadjusted bar as a dataframe
     -   get_expiration() -> pd.Series - Returns the expiration of the bar as a series
     -   get_instrument_id() -> pd.Series - Returns the instrument_id of the bar as a series
 
@@ -146,7 +145,7 @@ class Contract:
         self._volume: pd.Series
         self._expiration: pd.Series
         self._instrument_id: pd.Series
-        self.backadjusted: pd.Series = pd.Series()
+        self._backadjusted: pd.Series
         self.instrument: str = instrument
         self.dataset: DATASET = dataset
         self.schema: Agg = schema
@@ -484,8 +483,30 @@ class Contract:
                 "volume": self.get_volume(),
             }
         )
+    
+    @property
+    def open_interest(self) -> pd.Series:
+        """
+        Returns the open interest of the bar as a series
 
-    def get_backadjusted(self) -> pd.Series:
+        ONLY VALID FOR NORGATE DATA
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The open interest of the bar as a series
+        """
+        if self.catalog == CATALOG.NORGATE:
+            if self.data.empty:
+                raise ValueError("Data is empty")
+            else:
+                return self._open_interest
+        elif self.catalog == CATALOG.DATABENTO:
+            raise ValueError("Open Interest is not present in Databento Data")
+
+    @property
+    def backadjusted(self) -> pd.Series:
         """
         Returns the backadjusted series as a pandas series
 
@@ -506,41 +527,61 @@ class Contract:
         Returns:
         pd.DataFrame: The backadjusted bar as a dataframe
         """
-        if self.definitions.empty or self.data.empty:
-            raise ValueError("Data and Definitions are not present")
-        elif (
-            self.open.empty
-            or self.high.empty
-            or self.low.empty
-            or self.close.empty
-            or self.volume.empty
-        ):
-            raise ValueError("Open, High, Low, Close, or Volume is empty")
-        elif self.backadjusted.empty:
-            # Perform backadjustment on close prices and return the backadjusted series
-            # TODO: Check logic for backadjustment
-            backadjusted: pd.DataFrame = pd.DataFrame(self.data.copy()[["close", "instrument_id"]])
-            backadjusted.sort_index(ascending=False, inplace=True)
-            cumm_adj: float = 0.0
-            adj: float = 0.0
-            for i in range(1, len(backadjusted)):
-                if (
-                    backadjusted.iloc[i]["instrument_id"]
-                    != backadjusted.iloc[i - 1]["instrument_id"]
-                ):
-                    adj = (
-                        backadjusted["close"].iloc[i - 1]
-                        - backadjusted["close"].iloc[i]
-                    )
-                    cumm_adj += adj
-                    # Adjust all following prices with slicing
-                    backadjusted.loc[backadjusted.index[i] :, "close"] += adj
+        if self.catalog == CATALOG.NORGATE:
+            if self.data.empty:
+                raise ValueError("Data is empty")
+            else:
+                return self._backadjusted
+            
+        elif self.catalog == CATALOG.DATABENTO:
+            if self.definitions.empty or self.data.empty:
+                raise ValueError("Data and Definitions are not present")
+            elif (
+                self.open.empty
+                or self.high.empty
+                or self.low.empty
+                or self.close.empty
+                or self.volume.empty
+            ):
+                raise ValueError("Open, High, Low, Close, or Volume is empty")
+            elif self._backadjusted.empty:
+                # Perform backadjustment on close prices and return the backadjusted series
+                # TODO: Check logic for backadjustment
+                backadjusted: pd.DataFrame = pd.DataFrame(self.data.copy()[["close", "instrument_id"]])
+                backadjusted.sort_index(ascending=False, inplace=True)
+                cumm_adj: float = 0.0
+                adj: float = 0.0
+                for i in range(1, len(backadjusted)):
+                    if (
+                        backadjusted.iloc[i]["instrument_id"]
+                        != backadjusted.iloc[i - 1]["instrument_id"]
+                    ):
+                        adj = (
+                            backadjusted["close"].iloc[i - 1]
+                            - backadjusted["close"].iloc[i]
+                        )
+                        cumm_adj += adj
+                        # Adjust all following prices with slicing
+                        backadjusted.loc[backadjusted.index[i] :, "close"] += adj
 
-            backadjusted.sort_index(ascending=True, inplace=True)
-            self.backadjusted = pd.Series(backadjusted["close"])
-            return self.backadjusted
-        else:
-            return self.backadjusted
+                backadjusted.sort_index(ascending=True, inplace=True)
+                self._backadjusted = pd.Series(backadjusted["close"])
+                return self._backadjusted
+            else:
+                return self._backadjusted
+        
+    @backadjusted.setter
+    def backadjusted(self, value: pd.Series) -> None:
+        """
+        Setter for backadjusted series 
+
+        Args:
+        -   value: pd.Series | A pandas Series of backadjusted prices
+
+        Return:
+        -   None
+        """
+        self._backadjusted = value
 
     def _set_exp(self, data: pd.DataFrame, definitions: pd.DataFrame) -> pd.Series:
         """
@@ -568,6 +609,71 @@ class Contract:
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
         expirations: pd.Series = data["expiration"]
         return expirations
+
+    def construct_norgate(self) -> None:
+        """
+        Constructs the contract using the Norgate catalog and data which contains historical data ranging farther back than Databento
+
+        Norgate Data Format:
+        - index: numeric - The index of the bar
+        - Date: daily date in the format MM/DD/YYYY
+        - Security Name: str - The name of the security
+        - Open: float - The open price of the bar
+        - High: float - The high price of the bar
+        - Low: float - The low price of the bar
+        - Close: float - The close price of the bar
+        - Volume: int - The volume of the bar
+        - Open Interest: int - The open interest of the bar
+        - Delivery Month: int - The delivery month of the bar in the format YYYYMM
+        - Time: time in the format HH:MM:SS
+        - Unadj_Close: float - The unadjusted close price of the bar
+        - Next Quarter: int - The next quarter of the bar in the format YYYYMM
+
+        Args:
+        -   contract_type: ContractType - The contract type of the bar
+
+        Returns:
+        -   None
+        """
+        data_path_csv: Path = Path(f"{self.catalog}/_{self.instrument}_Data.csv")
+        data_path_parquet: Path = Path(f"{self.catalog}/_{self.instrument}_Data.parquet")
+
+        # Check if the data exists
+        if data_path_csv.exists():
+            try:
+                self.data = pd.read_csv(data_path_csv)
+            except Exception as e:
+                print(f"Could not read data: {e}")
+                raise
+
+            # Combine the Date and Time columns to create a timestamp
+            self.data["timestamp"] = pd.to_datetime(
+                self.data["Date"] + " " + self.data["Time"]
+            )
+
+            # Set the timestamp to the index
+            self.data.set_index("timestamp", inplace=True)
+
+            # Set the timestamp, open, high, low, unadj_close, volume, and open interest
+            self.timestamp = self.data.index
+            self.open = pd.Series(self.data["Open"])
+            self.high = pd.Series(self.data["High"])
+            self.low = pd.Series(self.data["Low"])
+            self.close = pd.Series(self.data["Unadj_Close"])
+            self.volume = pd.Series(self.data["Volume"])
+            self._open_interest = pd.Series(self.data["Open Interest"])
+            # Instrument ID becomes the delivery month
+            self.instrument_id = pd.Series(self.data["Delivery Month"])
+            # Expiration becomes the Datetime of the Delivery Month
+            self.expiration = pd.to_datetime(self.data["Delivery Month"], format="%Y%m")
+            # Set the backadjusted series to the close prices
+            self.backadjusted = pd.Series(self.data["Close"])
+
+            # Write to the catalog using parquet format and save the data
+        else:
+            raise(ValueError(f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"))
+
+
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -691,3 +797,15 @@ class Contract:
 
             # WARN: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
+
+
+if __name__ == "__main__":
+    # Example Usage
+    contract: Contract = Contract(
+        instrument="ES",
+        dataset=DATASET.CME,
+        schema=Agg.DAILY,
+        catalog=CATALOG.NORGATE,
+    )
+    contract.construct_norgate()
+    print(contract.close)
