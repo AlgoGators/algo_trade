@@ -697,8 +697,9 @@ class Contract:
         )
 
         range: dict[str, str] = client.metadata.get_dataset_range(dataset=self.dataset)
-        start: pd.Timestamp = pd.Timestamp(range["start"])
-        end: pd.Timestamp = pd.Timestamp(range["end"])
+        # Shift the data and definitions end back by one day to account for historical vs intraday data availability
+        start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
+        end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
 
         if data_path.exists() and definitions_path.exists():
             try:
@@ -710,11 +711,8 @@ class Contract:
 
             data_end: pd.Timestamp = pd.Timestamp(self.data.index[-1])
             definitions_end: pd.Timestamp = pd.Timestamp(self.definitions.index[-1])
-
             # Check if the data and definitions are up to date
-
-            # TODO: Needs to be shifted by one day to account for historical vs intraday data availability but good for debugging purposes
-            if data_end != end or definitions_end != end:
+            if data_end != end:
                 print(
                     f"Data and Definitions are not up to date for {self.instrument}"
                 )

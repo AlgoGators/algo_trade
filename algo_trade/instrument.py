@@ -1,11 +1,12 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
-from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
-
 import databento as db
 import pandas as pd
-import toml
+import toml 
+from enum import Enum 
+
+from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
 # Building out class structure to backadjust the futures data
 base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -14,8 +15,7 @@ config_path = os.path.join(config_dir, "config.toml")
 
 config: Dict[str, Any] = toml.load(config_path)
 
-
-class Instrument(ABC):
+class Instrument():
     """
     Instrument class to act as a base class for all asset classes
 
@@ -32,13 +32,17 @@ class Instrument(ABC):
 
     """
 
-    def __init__(self, symbol: str, dataset: str):
+    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0):
         self._symbol = symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(
             config["databento"]["api_historical"]
         )
         self.asset: ASSET
+        self.multiplier = multiplier
+
+        if instrument_type is not None:
+            self.__class__ = instrument_type.value
 
     @property
     def symbol(self) -> str:
@@ -140,6 +144,19 @@ class Instrument(ABC):
         pd.Series: The prices of the instrument
         """
         raise NotImplementedError()
+    
+    @property
+    def percent_returns(self) -> pd.Series:
+        """
+        Returns the percent returns of the instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The percent returns of the instrument
+        """
+        raise NotImplementedError()
 
 
 class Future(Instrument):
@@ -180,7 +197,7 @@ class Future(Instrument):
         Returns:
         Bar: The front month contract of the future instrument
         """
-        if self._front is None:
+        if not hasattr(self, "_front"):
             raise ValueError("Front is empty")
         return self._front
 
@@ -352,13 +369,68 @@ class Future(Instrument):
         self.front = contract
         self.price = contract.backadjusted
 
+    @property
+    def percent_returns(self) -> pd.Series:
+        """
+        Returns the percent returns of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The percent returns of the future instrument
+        """
+
+        if not hasattr(self, "_percent_change"):
+            #* For equation see: 
+            # https://qoppac.blogspot.com/2023/02/percentage-or-price-differences-when.html
+            self._percent_change : pd.Series = (
+                self.price - self.price.shift(1)) / self.front.get_close().shift(1)
+
+            self._percent_change.name = self.name
+
+        return self._percent_change
+
+class InstrumentType(Enum):
+    FUTURE = Future
+
+    @classmethod
+    def from_str(cls, value: str) -> "InstrumentType":
+        """
+        Converts a string to a InstrumentType enum based on the value to the Enum name and not value
+        so "FUTURE" -> FUTURE
+
+        Args:
+            - value: str - The value to convert to a InstrumentType enum
+
+        Returns:
+            - InstrumentType: The InstrumentType enum
+        """
+        try:
+            return cls[value.upper()]
+        except ValueError:
+
+            for member in cls:
+                if member.name.lower() == value.lower():
+                    return member
+
+            raise ValueError(f"{value} is not a valid {cls.__name__}")
+    
+
+def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
+    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'], row.loc['multiplier'])) for n, row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
+    # lst = initialize_instruments(pd.read_csv('data/contract.csv'))
     # Testing the Bar class
-    # Set sys.path to the base directory
-    import sys
 
     # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    future: Future = Future("ES", "CME")
-    future.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
-    exp = future.get_front().expiration
+    ex: str = "CME"
+    bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
+    futures: list[Future] = []
+    for sym in bucket:
+        fut: Future = Future(symbol=sym, dataset=ex)
+        fut.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
+        futures.append(fut)
+    
+    print(futures)

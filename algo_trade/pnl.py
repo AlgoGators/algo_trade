@@ -41,7 +41,7 @@ class PnL:
     def get_sharpe_ratio(self, aggregate : bool = True) -> pd.Series:
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return returns.mean() / returns.std() * DAYS_IN_YEAR ** 0.5
-    
+
     def get_volatility(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         if timespan == self.Timespan.DAILY:
@@ -50,7 +50,7 @@ class PnL:
             return returns.std() * DAYS_IN_YEAR ** 0.5
         else: 
             raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
-    
+
     def get_mean_return(self, timespan : Timespan, aggregate : bool = True) -> pd.Series:
         if timespan == self.Timespan.DAILY:
             returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
@@ -61,6 +61,26 @@ class PnL:
             cagr = (1 + total_return) ** (1 / (returns.count() / DAYS_IN_YEAR)) - 1
             return cagr
         raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
+
+    @property
+    def information_ratio(self) -> ... :
+        raise NotImplementedError()
+    
+    @property
+    def drawdown(self) -> ... :
+        raise NotImplementedError()
+    
+    def plot(self) -> None:
+        raise NotImplementedError()
+    
+    
+    def tracking_error(self, other : pd.Series) -> ... :
+        """Returns the tracking error between the PnL of the portfolio and another series (or maybe another PnL object?)"""
+        raise NotImplementedError()
+    
+    def regression(self, other : pd.Series) -> ... :
+        """Returns the regression between the PnL of the portfolio and another series (or maybe another PnL object?)"""
+        raise NotImplementedError()
 
     def __portfolio_percent_returns(self, capital : float) -> pd.Series:
         capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)

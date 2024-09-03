@@ -1,9 +1,9 @@
 import pandas as pd
+import numpy as np
 
 from algo_trade.instrument import Future
 from algo_trade.risk_measures import RiskMeasure
-from algo_trade.portfolio import Portfolio
-from algo_trade.dyn_opt import aggregator
+from algo_trade._constants import DAYS_IN_YEAR
 
 ### Strategy Rules
 
@@ -130,14 +130,24 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
 
     return df
 
-### Portfolio Rules
+def IDM(risk_object : RiskMeasure) -> pd.DataFrame:
+    """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
 
-def dynamic_optimization(portfolio : Portfolio[Future]):
-    portfolio.instruments[0].front
-    aggregator(
-        portfolio.capital,
-        None,
-        None,
-        None,
+    returns = risk_object.get_returns()
 
-    )
+    weights = equal_weight(risk_object.instruments)
+
+    rolling_corrs = returns.rolling(window=DAYS_IN_YEAR, min_periods=DAYS_IN_YEAR).corr()
+
+    IDMs = pd.Series(index=returns.index)
+
+    # Group by the date to get each correlation matrix
+    for date, corr_matrix in rolling_corrs.groupby(level=0):
+        # Drop the date index level to work with the matrix
+        corr_matrix = corr_matrix.droplevel(0)
+
+        IDMs.loc[date] = 1 / np.sqrt(weights.loc[date].values.T @ corr_matrix @ weights.loc[date].values)
+
+    IDMs = IDMs.bfill()
+
+    return pd.concat([IDMs.rename(instrument_name) for instrument_name in returns.columns], axis=1)
