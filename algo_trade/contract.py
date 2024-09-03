@@ -119,7 +119,6 @@ class Contract:
     -   get_close() -> pd.Series - Returns the close price of the bar as a series
     -   get_volume() -> pd.Series - Returns the volume of the bar as a series
     -   get_bar() -> pd.DataFrame - Returns the bar as a dataframe
-    -   get_backadjusted() -> pd.DataFrame - Returns the backadjusted bar as a dataframe
     -   get_expiration() -> pd.Series - Returns the expiration of the bar as a series
     -   get_instrument_id() -> pd.Series - Returns the instrument_id of the bar as a series
 
@@ -146,7 +145,7 @@ class Contract:
         self._volume: pd.Series
         self._expiration: pd.Series
         self._instrument_id: pd.Series
-        self.backadjusted: pd.Series = pd.Series()
+        self._backadjusted: pd.Series
         self.instrument: str = instrument
         self.dataset: DATASET = dataset
         self.schema: Agg = schema
@@ -672,7 +671,7 @@ class Contract:
 
             # Write to the catalog using parquet format and save the data
         else:
-            raise(ValueError("Data not present for {self.instrument}. Please check the catalog."))
+            raise(ValueError(f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"))
 
 
 

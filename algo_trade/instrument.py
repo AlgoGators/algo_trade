@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
-from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
+from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
 import databento as db
 import pandas as pd
@@ -340,6 +340,7 @@ class Future(Instrument):
             instrument=self.symbol,
             dataset=DATASET.from_str(self.dataset),
             schema=Agg.DAILY,
+            catalog=CATALOG.NORGATE,
         )
 
         if name is None:
@@ -349,7 +350,7 @@ class Future(Instrument):
 
         self.contracts[name] = contract
         self.front = contract
-        self.price = contract.get_backadjusted()
+        self.price = contract.backadjusted
 
 
 if __name__ == "__main__":
