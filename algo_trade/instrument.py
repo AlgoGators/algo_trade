@@ -143,6 +143,19 @@ class Instrument():
         pd.Series: The prices of the instrument
         """
         raise NotImplementedError()
+    
+    @property
+    def percent_returns(self) -> pd.Series:
+        """
+        Returns the percent returns of the instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The percent returns of the instrument
+        """
+        raise NotImplementedError()
 
 
 class Future(Instrument):
@@ -328,6 +341,28 @@ class Future(Instrument):
             self.price = contract.get_backadjusted()
         elif contract_type == ContractType.BACK:
             self.back = contract
+
+    @property
+    def percent_returns(self) -> pd.Series:
+        """
+        Returns the percent returns of the future instrument
+
+        Args:
+        None
+
+        Returns:
+        pd.Series: The percent returns of the future instrument
+        """
+
+        if not hasattr(self, "_percent_change"):
+            #* For equation see: 
+            # https://qoppac.blogspot.com/2023/02/percentage-or-price-differences-when.html
+            self._percent_change : pd.Series = (
+                self.price - self.price.shift(1)) / self.front.get_close().shift(1)
+
+            self._percent_change.name = self.name
+
+        return self._percent_change
 
 class InstrumentType(Enum):
     FUTURE = Future
