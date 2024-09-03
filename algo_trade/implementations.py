@@ -4,7 +4,7 @@ from algo_trade.portfolio import Portfolio
 from algo_trade.strategy import Strategy, FutureDataFetcher
 from algo_trade.instrument import Instrument, Future
 from algo_trade.pnl import PnL
-from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals
+from algo_trade.rules import capital_scaling, risk_parity, equal_weight, trend_signals, IDM
 from algo_trade.risk_measures import GARCH, RiskMeasure
 from algo_trade.dyn_opt import dyn_opt
 from algo_trade.risk_limits import portfolio_multiplier, position_limit
@@ -18,7 +18,8 @@ class TrendFollowing(Strategy[Future]):
             partial(risk_parity, risk_object=self.risk_object),
             partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
             partial(equal_weight, instruments=instruments),
-            partial(capital_scaling, instruments=instruments, capital=capital)
+            partial(capital_scaling, instruments=instruments, capital=capital),
+            partial(IDM, risk_object=self.risk_object)
         ]
         self.scalars = []
         self.fetch_data()  # Fetch the data for the instruments
