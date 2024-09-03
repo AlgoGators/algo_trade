@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Self, Optional
+from typing import Self, Optional, TypeVar, Generic
 
 from algo_trade.instrument import Instrument, Future
 from algo_trade._constants import DAYS_IN_YEAR
@@ -82,8 +82,16 @@ class Variance(pd.DataFrame):
     def to_frame(self) -> pd.DataFrame:
         return pd.DataFrame(self)
 
-class RiskMeasure(ABC):
+T = TypeVar('T', bound=Instrument)
+
+class RiskMeasure(ABC, Generic[T]):
     def __init__(self, tau : float = None) -> None:
+        self.instruments : list[Instrument]
+
+        self.__returns = pd.DataFrame()
+        self.__product_returns : pd.DataFrame = pd.DataFrame()
+        self.fill : bool
+
         if tau is not None:
             self.tau = tau
 
@@ -99,13 +107,39 @@ class RiskMeasure(ABC):
             raise ValueError("tau, x, is a float such that x ∈ (0, inf)")
         self._tau = value
 
-    @abstractmethod
     def get_returns(self) -> pd.DataFrame:
-        pass
+        if not self.__returns.empty:
+            return self.__returns
 
-    @abstractmethod
+        returns = pd.DataFrame()
+        for instrument in self.instruments:
+            returns = pd.concat([returns, instrument.percent_returns], axis=1)
+
+        if self.fill:
+            returns = _utils.ffill_zero(returns)
+
+        return returns
+
     def get_product_returns(self) -> pd.DataFrame:
-        pass
+        if not self.__product_returns.empty:
+            return self.__product_returns
+
+        returns = self.get_returns()
+
+        product_dictionary : dict[str, pd.Series] = {}
+
+        for i, instrument_i in enumerate(self.instruments):
+            for j, instrument_j in enumerate(self.instruments):
+                if i > j:
+                    continue
+                
+                product_dictionary[f'{instrument_i.name}_{instrument_j.name}'] = returns[instrument_i.name] * returns[instrument_j.name]
+
+        self.__product_returns = pd.DataFrame(product_dictionary, index=returns.index)
+
+        self.__product_returns = _utils.ffill_zero(self.__product_returns) if self.fill else self.__product_returns
+
+        return self.__product_returns
 
     @abstractmethod
     def get_var(self) -> Variance:
@@ -132,11 +166,11 @@ class RiskMeasure(ABC):
 
         return jump_covariances
 
-class GARCH(RiskMeasure):
+class GARCH(RiskMeasure[T]):
     def __init__(
         self,
         risk_target : float,
-        instruments : list[Instrument],
+        instruments : list[T],
         weights : tuple[float, float, float],
         minimum_observations : int,
         fill : bool = True) -> None:
@@ -148,56 +182,8 @@ class GARCH(RiskMeasure):
         self.minimum_observations = minimum_observations
         self.fill = fill
 
-        self.__returns = pd.DataFrame()
-        self.__product_returns = pd.DataFrame()
         self.__var = Variance()
         self.__cov = pd.DataFrame()
-
-    def get_returns(self) -> pd.DataFrame:
-        if not self.__returns.empty:
-            return self.__returns
-
-        if not all(isinstance(instrument, Future) for instrument in self.instruments):
-            raise NotImplementedError("Only futures are supported")
-
-        instrument : Future
-        for instrument in self.instruments:
-            backadjusted_prices : pd.Series = instrument.price
-            unadjusted_prices : pd.Series = instrument.front.get_close()
-
-            #* For equation see: 
-            # https://qoppac.blogspot.com/2023/02/percentage-or-price-differences-when.html
-            percent_change : pd.Series = (
-                backadjusted_prices - backadjusted_prices.shift(1)) / unadjusted_prices.shift(1)
-
-            percent_change.name = instrument.name
-            self.__returns = pd.concat([self.__returns, percent_change], axis=1)
-
-        if self.fill:
-            self.__returns = _utils.ffill_zero(self.__returns)
-
-        return self.__returns
-    
-    def get_product_returns(self) -> pd.DataFrame:
-        if not self.__product_returns.empty:
-            return self.__product_returns
-
-        returns = self.get_returns()
-
-        product_dictionary : dict[str, pd.Series] = {}
-
-        for i, instrument_i in enumerate(self.instruments):
-            for j, instrument_j in enumerate(self.instruments):
-                if i > j:
-                    continue
-                
-                product_dictionary[f'{instrument_i.name}_{instrument_j.name}'] = returns[instrument_i.name] * returns[instrument_j.name]
-
-        self.__product_returns = pd.DataFrame(product_dictionary, index=returns.index)
-
-        self.__product_returns = _utils.ffill_zero(self.__product_returns) if self.fill else self.__product_returns
-
-        return self.__product_returns
 
     def get_var(self) -> Variance:
         if not self.__var.empty:
