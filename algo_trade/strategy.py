@@ -9,7 +9,7 @@ from algo_trade.risk_measures import RiskMeasure
 
 T = TypeVar('T', bound='Instrument')
 
-class Strategy(Generic[T], ABC):
+class Strategy(ABC, Generic[T]):
     """
     Strategy class is an abstract class that defines the structure of a strategy. Strategies are composed of a list of Insturments, a list of Callable rules, and a list of scalars. The rules are applied to the instruments to generate a DataFrame of positions. The scalars are applied to the positions to generate the final positions DataFrame.
     """
