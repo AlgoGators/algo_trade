@@ -2,10 +2,10 @@ import os
 from typing import Any, Dict, TypeVar, Generic
 
 import pandas as pd
-import toml
 from abc import ABC
 import numpy as np
 from typing import Callable
+from dotenv import load_dotenv
 
 # Internal
 from algo_trade.strategy import Strategy
@@ -13,11 +13,7 @@ from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
 
-base_dir = os.path.dirname(os.path.dirname(__file__))
-config_dir = os.path.join(base_dir, "config")
-config_path = os.path.join(config_dir, "config.toml")
-
-config: Dict[str, Any] = toml.load(config_path)
+load_dotenv()
 
 T = TypeVar('T', bound=Instrument)
 

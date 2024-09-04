@@ -3,17 +3,12 @@ from typing import Any, Dict, Tuple, Optional
 from abc import ABC
 import databento as db
 import pandas as pd
-import toml 
 from enum import Enum 
+from dotenv import load_dotenv
 
 from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
-# Building out class structure to backadjust the futures data
-base_dir = os.path.dirname(os.path.dirname(__file__))
-config_dir = os.path.join(base_dir, "config")
-config_path = os.path.join(config_dir, "config.toml")
-
-config: Dict[str, Any] = toml.load(config_path)
+load_dotenv()
 
 class Instrument():
     """
@@ -35,9 +30,7 @@ class Instrument():
     def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0):
         self._symbol = symbol
         self._dataset = dataset
-        self.client: db.Historical = db.Historical(
-            config["databento"]["api_historical"]
-        )
+        self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
         self.asset: ASSET
         self.multiplier = multiplier
 

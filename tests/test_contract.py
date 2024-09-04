@@ -25,9 +25,6 @@ if os.getenv('DATABENTO_API_KEY') is None:
 else:
     print(f"API Key: {os.getenv('DATABENTO_API_KEY')}")
 
-# Load the configuration file
-config = toml.load('config/config.toml')
-
 
 @pytest.fixture
 def contract() -> Contract:
