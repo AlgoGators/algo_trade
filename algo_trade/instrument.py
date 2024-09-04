@@ -339,7 +339,7 @@ class Future(Instrument):
         self.contracts[name] = contract
         if contract_type == ContractType.FRONT:
             self.front = contract
-            self.price = contract.get_backadjusted()
+            self.price = contract.backadjusted
         elif contract_type == ContractType.BACK:
             self.back = contract
 

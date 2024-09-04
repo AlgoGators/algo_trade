@@ -65,7 +65,7 @@ def test_backadjusted(contract: Contract):
     Test the backadjusted method within the Contract class.
     """
     # TODO: Implement backadjusted as a property and turn the function into a ~pure~ function
-    backadjusted = contract.get_backadjusted()
+    backadjusted = contract.backadjusted
     assert backadjusted is not None
 
 # Test the expiration property

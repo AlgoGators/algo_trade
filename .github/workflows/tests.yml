@@ -11,11 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
+      
       - name: Install Poetry
         run: curl -sSL https://install.python-poetry.org | python3 -
+
       - name: Add Poetry to path
         run: echo "${HOME}/.poetry/bin" >> $GITHUB_PATH
+
       - name: Install venv
         run: poetry install
+
+      - name: Setting Environment Variables
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: echo "DATABENTO_API_KEY=${DATABENTO_API_KEY}" >> $GITHUB_ENV
+
       - name: Test with pytest
-        run: poetry run pytest
+        run: poetry run pytest tests/

@@ -145,7 +145,7 @@ class Contract:
         self._volume: pd.Series
         self._expiration: pd.Series
         self._instrument_id: pd.Series
-        self._backadjusted: pd.Series
+        self._backadjusted: pd.Series = pd.Series()
         self.instrument: str = instrument
         self.dataset: DATASET = dataset
         self.schema: Agg = schema
@@ -667,7 +667,7 @@ class Contract:
             # Expiration becomes the Datetime of the Delivery Month
             self.expiration = pd.to_datetime(self.data["Delivery Month"], format="%Y%m")
             # Set the backadjusted series to the close prices
-            self.backadjusted = pd.Series(self.data["Close"])
+            self._backadjusted = pd.Series(self.data["Close"])
 
             # Write to the catalog using parquet format and save the data
         else:
