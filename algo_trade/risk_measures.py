@@ -83,19 +83,19 @@ class Variance(pd.DataFrame):
         return pd.DataFrame(self)
 
 class Covariance:
-    def __init__(self, covariance_matrices : np.ndarray = None, dates : pd.DatetimeIndex = None, instruments : list[str] = None) -> None:
+    def __init__(self, covariance_matrices : np.ndarray = None, dates : pd.DatetimeIndex = None, instrument_names : list[str] = None) -> None:
         self._covariance_matrices = covariance_matrices
         self._dates = dates
-        self._instruments = instruments if instruments is not None else []
+        self._instrument_names = instrument_names if instrument_names is not None else []
         self._columns = []
 
     def to_frame(self) -> pd.DataFrame:
-        self._columns = [f'{instrument_I}_{instrument_J}' for i, instrument_I in enumerate(self._instruments) for j, instrument_J in enumerate(self._instruments) if i <= j]
+        self._columns = [f'{instrument_I}_{instrument_J}' for i, instrument_I in enumerate(self._instrument_names) for j, instrument_J in enumerate(self._instrument_names) if i <= j]
         rows = []
         for n in range(self._covariance_matrices.shape[0]):
             row = []
-            for i, instrument_I in enumerate(self._instruments):
-                for j, instrument_J in enumerate(self._instruments):
+            for i, instrument_I in enumerate(self._instrument_names):
+                for j, instrument_J in enumerate(self._instrument_names):
                     if i > j:
                         continue
                     row.append(self._covariance_matrices[n, i, j])
@@ -118,15 +118,15 @@ class Covariance:
 
     def from_frame(self, df : pd.DataFrame, inplace : bool = False) -> Optional['Covariance']:
         for column in df.columns:
-            if column.split('_')[0] not in self._instruments:
-                self._instruments.append(column.split('_')[0])
+            if column.split('_')[0] not in self._instrument_names:
+                self._instrument_names.append(column.split('_')[0])
         
         self._dates = pd.to_datetime(df.index)
 
-        self._covariance_matrices = np.zeros((df.shape[0], len(self._instruments), len(self._instruments)))
+        self._covariance_matrices = np.zeros((df.shape[0], len(self._instrument_names), len(self._instrument_names)))
         for n, (index, row) in enumerate(df.iterrows()):
-            for i, instrument_I in enumerate(self._instruments):
-                for j, instrument_J in enumerate(self._instruments):
+            for i, instrument_I in enumerate(self._instrument_names):
+                for j, instrument_J in enumerate(self._instrument_names):
                     if i > j:
                         continue
                     self._covariance_matrices[n, i, j] = row[f'{instrument_I}_{instrument_J}']
@@ -273,7 +273,7 @@ class RiskMeasure(ABC, Generic[T]):
 
         return self.__jump_covariances
 
-class JPMorgan(RiskMeasure[T]):
+class EqualWeight(RiskMeasure[T]):
     def __init__(
         self,
         risk_target : float,
@@ -305,13 +305,7 @@ class JPMorgan(RiskMeasure[T]):
 
     def get_cov(self) -> Covariance:
         if self.__cov.empty:
-            # returns_matrix = self.get_returns().values
-            df = pd.DataFrame({
-                'ES': np.random.normal(0, 1, 1000) * 0.20 / 16 + 0.20 / 256,
-                'ZN': np.random.normal(0, 1, 1000) * 0.10 / 16 + 0.10 / 256,
-                'NQ': np.random.normal(0, 1, 1000) * 0.40 / 16 + 0.40 / 256
-            }, index=pd.date_range(start='2022-01-01', periods=1000))
-            returns_matrix = df.values
+            returns_matrix = self.get_returns().values
 
             covariance_matrices = np.zeros((returns_matrix.shape[0], returns_matrix.shape[1], returns_matrix.shape[1]))
 
@@ -320,9 +314,14 @@ class JPMorgan(RiskMeasure[T]):
                 covariance_matrix = returns.T @ returns / self.window
                 covariance_matrices[i] = covariance_matrix
 
-            self.__cov = Covariance(covariance_matrices, df.index, df.columns)
+            self.__cov = Covariance(covariance_matrices, self.get_returns().index, self.get_returns().columns)
 
         return self.__cov
+    
+    def get_corr(self) -> pd.DataFrame:
+        # Dinv = np.diag(1 / np.sqrt(np.diag(cov)))
+        # corr = Dinv @ cov @ Dinv
+        pass
 
 class Simple(RiskMeasure[T]):
     def __init__(
