@@ -8,6 +8,7 @@ from functools import reduce
 from algo_trade.portfolio import Portfolio
 from algo_trade.instrument import Future
 from algo_trade.risk_logging import CsvFormatter
+from algo_trade.risk_measures import Covariance
 
 logging.basicConfig(
     level=logging.INFO,
@@ -149,8 +150,8 @@ def single_day_optimization(
         position_limit_fn : Callable,
         portfolio_multiplier_fn : Callable) -> np.ndarray:
 
-    covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(covariances_one_day)
-    jump_covariance_matrix_one_day : np.ndarray = covariance_row_to_matrix(jump_covariances_one_day)
+    covariance_matrix_one_day : np.ndarray = covariances_one_day
+    jump_covariance_matrix_one_day : np.ndarray = jump_covariances_one_day
 
     ideal_positions_weighted = ideal_positions_one_day * weight_per_contract_one_day
     held_positions_weighted = held_positions_one_day * weight_per_contract_one_day
@@ -192,13 +193,16 @@ def dyn_opt(
         portfolio_multiplier_fn : Callable) -> Portfolio[Future]:
     
     unadj_prices = pd.concat([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
-    covariances = portfolio.risk_object.get_cov()
-    jump_covariances : pd.DataFrame = portfolio.risk_object.get_jump_cov(0.95, 100)
+    covariances : Covariance = portfolio.risk_object.get_cov()
+    jump_covariances : Covariance = portfolio.risk_object.get_jump_cov(0.95, 100)
     volume = pd.concat([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
     
     costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64).fillna(cost_per_contract)
     
-    portfolio.positions, costs_per_contract, covariances, jump_covariances, volume, unadj_prices,instrument_weights = reindex((portfolio.positions, costs_per_contract, covariances, jump_covariances, volume, unadj_prices, instrument_weights))
+    portfolio.positions, costs_per_contract, volume, unadj_prices,instrument_weights = reindex((portfolio.positions, costs_per_contract, volume, unadj_prices, instrument_weights))
+
+    covariances.reindex(portfolio.positions.index)
+    jump_covariances.reindex(portfolio.positions.index)
 
     notional_exposure_per_contract = unadj_prices * portfolio.multipliers.iloc[0]
     weight_per_contract = notional_exposure_per_contract / portfolio.capital
@@ -210,8 +214,6 @@ def dyn_opt(
     contract_weight_matrix = weight_per_contract.values
     exposure_matrix = notional_exposure_per_contract.values
     volume_matrix = volume.values
-    covariance_matrix = covariances.values
-    jump_covariance_matrix = jump_covariances.values
     instrument_weight_matrix = instrument_weights.values
 
     for n, date in enumerate(portfolio.positions.index):
@@ -228,8 +230,8 @@ def dyn_opt(
             contract_weight_matrix[n],
             instrument_weight_matrix[n],
             exposure_matrix[n],
-            covariance_matrix[n],
-            jump_covariance_matrix[n],
+            covariances[n],
+            jump_covariances[n],
             volume_matrix[n],
             portfolio.risk_object.tau,
             portfolio.capital,
