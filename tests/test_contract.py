@@ -66,7 +66,10 @@ def test_backadjusted(contract: Contract):
 
     We will need a dataframe with an index of timestamps and two columns of instrument ids and close prices. We will then test to see if the returned backadjusted series follows the proper backadjustment algorithm.
     """
-    close = [100, 100.2, 100.3, 100.2, 99.9, 98.7, 99.5, 99.9, 100.1]
+    A = [100, 100.2, 100.3]
+    B = [100.2, 99.9, 98.7]
+    C = [99.5, 99.9, 100.1]
+    close = A + B + C
     dates = pd.date_range(start='2022-01-02', periods=len(close), freq='D')
     instrument_ids = [1, 1, 1, 2, 2, 2, 3, 3, 3]
 
@@ -97,7 +100,7 @@ def test_contract_expiration(contract: Contract):
     data = pd.DataFrame({"instrument_id": instrument_ids}, index=dates)
 
     instrument_ids = [1, 3, 5]
-    expirations = pd.date_range(start='2021-01-31', periods=3, freq='M')
+    expirations = pd.date_range(start='2021-01-31', periods=3, freq='ME')
     dates = pd.date_range(start='2021-01-01', periods=3, freq='2D')
 
     definition = pd.DataFrame({"instrument_id": instrument_ids, "expiration": expirations}, index=dates)
