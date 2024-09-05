@@ -61,10 +61,19 @@ def test_contract_props(contract: Contract):
 def test_backadjusted(contract: Contract):
     """
     Test the backadjusted method within the Contract class.
+
+    The backadjusted method is called in the backadjusted property of the Contract class is called _perform_backadjustment. Our test will revolve around this method and testing its functionality.
+
+    We will need a dataframe with an index of timestamps and two columns of instrument ids and close prices. We will then test to see if the returned backadjusted series follows the proper backadjustment algorithm.
     """
-    # TODO: Implement backadjusted as a property and turn the function into a ~pure~ function
-    backadjusted = contract.backadjusted
-    assert backadjusted is not None
+    dates = pd.date_range(start='2021-01-01', periods=9, freq='D')
+    instrument_ids = [1, 1, 1, 2, 2, 2, 3, 3, 3]
+    close = [100, 101, 102, 200, 201, 202, 300, 301, 302]
+
+    data = pd.DataFrame({"instrument_id": instrument_ids, "close": close}, index=dates)
+
+    backadjusted: pd.Series = contract._perform_backadjustment(data)
+
 
 # Test the expiration property
 def test_contract_expiration(contract: Contract):

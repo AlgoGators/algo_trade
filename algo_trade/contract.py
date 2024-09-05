@@ -7,10 +7,12 @@ import os
 
 load_dotenv()
 
+
 # TODO: Add more vendor catalogs such as Norgate
 class CATALOG(StrEnum):
     DATABENTO = f"data/catalog/databento/"
     NORGATE = f"data/catalog/norgate/"
+
 
 class URI(StrEnum):
     DATABENTO = "s3://algogatorsbucket/catalog/databento/"
@@ -367,7 +369,7 @@ class Contract:
         if self._instrument_id.empty:
             raise ValueError("Instrument ID is empty")
         return self._instrument_id
-    
+
     @instrument_id.setter
     def instrument_id(self, value: pd.Series) -> None:
         """
@@ -483,7 +485,7 @@ class Contract:
                 "volume": self.get_volume(),
             }
         )
-    
+
     @property
     def open_interest(self) -> pd.Series:
         """
@@ -504,6 +506,32 @@ class Contract:
                 return self._open_interest
         elif self.catalog == CATALOG.DATABENTO:
             raise ValueError("Open Interest is not present in Databento Data")
+
+    def _perform_backadjustment(self, data: pd.DataFrame) -> pd.Series:
+        """
+        Perform backadjustment on the close prices of the data
+
+        Args:
+        - data: pd.DataFrame - The data to perform backadjustment on containing the instrument_id and close prices
+
+        Returns:
+        - pd.Series: The backadjusted data
+        """
+
+        backadjusted: pd.DataFrame = data.sort_index(ascending=False)
+        cum: float = 0.0
+        adj: float = 0.0
+        for i in range(1, len(backadjusted)):
+            if (
+                backadjusted.iloc[i]["instrument_id"]
+                != backadjusted.iloc[i - 1]["instrument_id"]
+            ):
+                adj = backadjusted["close"].iloc[i - 1] - backadjusted["close"].iloc[i]
+                cum += adj
+                backadjusted.loc[backadjusted.index[i] :, "close"] += adj
+
+        backadjusted.sort_index(ascending=True, inplace=True)
+        return pd.Series(backadjusted["close"])
 
     @property
     def backadjusted(self) -> pd.Series:
@@ -532,7 +560,7 @@ class Contract:
                 raise ValueError("Data is empty")
             else:
                 return self._backadjusted
-            
+
         elif self.catalog == CATALOG.DATABENTO:
             if self.definitions.empty or self.data.empty:
                 raise ValueError("Data and Definitions are not present")
@@ -547,33 +575,19 @@ class Contract:
             elif self._backadjusted.empty:
                 # Perform backadjustment on close prices and return the backadjusted series
                 # TODO: Check logic for backadjustment
-                backadjusted: pd.DataFrame = pd.DataFrame(self.data.copy()[["close", "instrument_id"]])
-                backadjusted.sort_index(ascending=False, inplace=True)
-                cumm_adj: float = 0.0
-                adj: float = 0.0
-                for i in range(1, len(backadjusted)):
-                    if (
-                        backadjusted.iloc[i]["instrument_id"]
-                        != backadjusted.iloc[i - 1]["instrument_id"]
-                    ):
-                        adj = (
-                            backadjusted["close"].iloc[i - 1]
-                            - backadjusted["close"].iloc[i]
-                        )
-                        cumm_adj += adj
-                        # Adjust all following prices with slicing
-                        backadjusted.loc[backadjusted.index[i] :, "close"] += adj
-
-                backadjusted.sort_index(ascending=True, inplace=True)
-                self._backadjusted = pd.Series(backadjusted["close"])
+                backadjusted: pd.DataFrame = pd.DataFrame(
+                    self.data.copy()[["close", "instrument_id"]]
+                )
+                tmp_backadjusted: pd.Series = self._perform_backadjustment(backadjusted)
+                self._backadjusted = tmp_backadjusted
                 return self._backadjusted
             else:
                 return self._backadjusted
-        
+
     @backadjusted.setter
     def backadjusted(self, value: pd.Series) -> None:
         """
-        Setter for backadjusted series 
+        Setter for backadjusted series
 
         Args:
         -   value: pd.Series | A pandas Series of backadjusted prices
@@ -636,7 +650,9 @@ class Contract:
         -   None
         """
         data_path_csv: Path = Path(f"{self.catalog}/_{self.instrument}_Data.csv")
-        data_path_parquet: Path = Path(f"{self.catalog}/_{self.instrument}_Data.parquet")
+        data_path_parquet: Path = Path(
+            f"{self.catalog}/_{self.instrument}_Data.parquet"
+        )
 
         # Check if the data exists
         if data_path_csv.exists():
@@ -671,9 +687,11 @@ class Contract:
 
             # Write to the catalog using parquet format and save the data
         else:
-            raise(ValueError(f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"))
-
-
+            raise (
+                ValueError(
+                    f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"
+                )
+            )
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -713,9 +731,7 @@ class Contract:
             definitions_end: pd.Timestamp = pd.Timestamp(self.definitions.index[-1])
             # Check if the data and definitions are up to date
             if data_end != end:
-                print(
-                    f"Data and Definitions are not up to date for {self.instrument}"
-                )
+                print(f"Data and Definitions are not up to date for {self.instrument}")
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
                     symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
