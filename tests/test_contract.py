@@ -11,12 +11,13 @@ Functions:
 Author: Cole Rottenberg
 Organization: AlgoGators Investment Fund
 """
-from algo_trade.contract import Contract, Agg, ContractType, RollType, CATALOG, DATASET
+import pandas as pd
+import numpy as np
 import pytest
 import databento as dbn
-import toml
 from dotenv import load_dotenv
 import os
+from algo_trade.contract import Contract, Agg, ContractType, RollType, CATALOG, DATASET
 
 # Load the environment variables
 load_dotenv()
@@ -70,9 +71,32 @@ def test_contract_expiration(contract: Contract):
     """
     Test the expiration property.
 
+    The _set_exp method is called in the construct method of the Contract class. Our test will revolve around this method and testing its functionality.
+
+    We will need a dataframe with atleast an index of dates and a column of instrument ids. We then will need a dataframe with matching instrument ids and an expiration date with a non-daily frequency. We will then test to see if the returned expiration dataframe contains daily expiration dates.
+
     Test:
         - The expiratoin property series is the same length as the timestamp series.
         - Each element is in in order... drop duplicates and check that each timestamped expiry is greater than the previous.
     """
-    assert contract.expiration.shape[0] == contract.timestamp.shape[0]
-    assert contract.expiration.drop_duplicates().is_monotonic_increasing
+
+    dates = pd.date_range(start='2021-01-01', periods=5, freq='D')
+    instrument_ids = [1, 1, 3, 3, 5]
+    data = pd.DataFrame({"instrument_id": instrument_ids}, index=dates)
+
+    instrument_ids = [1, 3, 5]
+    expirations = pd.date_range(start='2021-01-31', periods=3, freq='M')
+    dates = pd.date_range(start='2021-01-01', periods=3, freq='2D')
+
+    definition = pd.DataFrame({"instrument_id": instrument_ids, "expiration": expirations}, index=dates)
+
+    exp: pd.Series = contract._set_exp(data, definition)
+
+    # Test 1: The expiration series index is the same is the data index
+    assert len(exp) == len(data)
+
+    # Test 2: The index of the expiration series is the same as the data index 
+    assert exp.index.equals(data.index)
+
+    # Test 3: The expiration series is in order
+    assert exp.index.is_monotonic_increasing
