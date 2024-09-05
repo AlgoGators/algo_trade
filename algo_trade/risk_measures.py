@@ -82,6 +82,101 @@ class Variance(pd.DataFrame):
     def to_frame(self) -> pd.DataFrame:
         return pd.DataFrame(self)
 
+class Covariance:
+    def __init__(self, covariance_matrices : np.ndarray = None, dates : pd.DatetimeIndex = None, instruments : list[str] = None) -> None:
+        self._covariance_matrices = covariance_matrices
+        self._dates = dates
+        self._instruments = instruments if instruments is not None else []
+        self._columns = []
+
+    def to_frame(self) -> pd.DataFrame:
+        self._columns = [f'{instrument_I}_{instrument_J}' for i, instrument_I in enumerate(self._instruments) for j, instrument_J in enumerate(self._instruments) if i <= j]
+        rows = []
+        for n in range(self._covariance_matrices.shape[0]):
+            row = []
+            for i, instrument_I in enumerate(self._instruments):
+                for j, instrument_J in enumerate(self._instruments):
+                    if i > j:
+                        continue
+                    row.append(self._covariance_matrices[n, i, j])
+            rows.append(row)
+        return pd.DataFrame(rows, columns=self._columns, index=self._dates)
+
+    # @property
+    # def columns(self) -> list[str]:
+    #     return self._columns
+    
+    @property
+    def index(self) -> pd.DatetimeIndex:
+        return self._dates
+    
+    def reindex(self, dates : pd.DatetimeIndex):
+        intersection = self._dates.intersection(dates)
+
+        self._covariance_matrices = self._covariance_matrices[self._dates.isin(intersection)]
+        self._dates = intersection
+
+    def from_frame(self, df : pd.DataFrame, inplace : bool = False) -> Optional['Covariance']:
+        for column in df.columns:
+            if column.split('_')[0] not in self._instruments:
+                self._instruments.append(column.split('_')[0])
+        
+        self._dates = pd.to_datetime(df.index)
+
+        self._covariance_matrices = np.zeros((df.shape[0], len(self._instruments), len(self._instruments)))
+        for n, (index, row) in enumerate(df.iterrows()):
+            for i, instrument_I in enumerate(self._instruments):
+                for j, instrument_J in enumerate(self._instruments):
+                    if i > j:
+                        continue
+                    self._covariance_matrices[n, i, j] = row[f'{instrument_I}_{instrument_J}']
+                    self._covariance_matrices[n, j, i] = row[f'{instrument_I}_{instrument_J}']
+        
+        if not inplace:
+            return self
+
+    def iterate(self):
+        for n in range(self._covariance_matrices.shape[0]):
+            yield self._dates[n], self._covariance_matrices[n]
+
+    @property
+    def empty(self) -> bool:
+        return self._covariance_matrices is None
+    
+    @property
+    def iloc(self):
+        return self._ILocIndexer(self)
+
+    @property
+    def loc(self):
+        return self._LocIndexer(self)
+
+    def __str__(self) -> str:
+        return self.to_frame().__str__()
+    
+    def __repr__(self) -> str:
+        return self.to_frame().__repr__()
+    
+    def __getitem__(self, key):
+        return self._covariance_matrices[key]
+
+    class _ILocIndexer:
+        def __init__(self, parent : 'Covariance') -> None:
+            self.parent = parent
+
+        def __getitem__(self, key):
+            covariance_matrix = self.parent._covariance_matrices[key]
+            return pd.DataFrame(covariance_matrix, index=self.parent._instruments, columns=self.parent._instruments)
+
+    class _LocIndexer:
+        def __init__(self, parent : 'Covariance') -> None:
+            self.parent = parent
+
+        def __getitem__(self, key):
+            covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
+            return pd.DataFrame(covariance_matrix, index=self.parent._instruments, columns=self.parent._instruments)
+        
+
 T = TypeVar('T', bound=Instrument)
 
 class RiskMeasure(ABC, Generic[T]):
@@ -90,6 +185,7 @@ class RiskMeasure(ABC, Generic[T]):
 
         self.__returns = pd.DataFrame()
         self.__product_returns : pd.DataFrame = pd.DataFrame()
+        self.__jump_covariances : Covariance = Covariance()
         self.fill : bool
 
         if tau is not None:
@@ -114,6 +210,8 @@ class RiskMeasure(ABC, Generic[T]):
         returns = pd.DataFrame()
         for instrument in self.instruments:
             returns = pd.concat([returns, instrument.percent_returns], axis=1)
+
+        returns = returns.reindex(sorted(returns.columns), axis=1)
 
         if self.fill:
             returns = _utils.ffill_zero(returns)
@@ -146,25 +244,126 @@ class RiskMeasure(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def get_cov(self) -> pd.DataFrame:
+    def get_cov(self) -> Covariance:
         pass
     
-    def get_jump_cov(self, percentile : float, window : int) -> pd.DataFrame:
+    def get_jump_cov(self, percentile : float, window : int) -> Covariance:
+        if not self.__jump_covariances.empty:
+            return self.__jump_covariances
+    
         if (percentile < 0) or (percentile > 1):
             raise ValueError("percentile, x, is a float such that x ∈ (0, 1)")
 
-        dates = self.get_cov().index
+        covar_df = self.get_cov().to_frame()
 
-        jump_covariances = pd.DataFrame(index=dates, columns=self.get_cov().columns)
+        dates = covar_df.index
+
+        jump_covariances = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
 
         for i in range(len(dates)):
             if i < window:
                 continue
 
-            window_covariances = self.get_cov().iloc[i-window:i]
+            window_covariances = covar_df.iloc[i-window:i]
             jump_covariances.iloc[i] = window_covariances.quantile(percentile)
 
-        return jump_covariances
+        jump_covariances = jump_covariances.interpolate() if self.fill else jump_covariances
+
+        self.__jump_covariances = Covariance().from_frame(jump_covariances)
+
+        return self.__jump_covariances
+
+class JPMorgan(RiskMeasure[T]):
+    def __init__(
+        self,
+        risk_target : float,
+        instruments : list[T],
+        window : int,
+        fill : bool = True) -> None:
+        
+        super().__init__(tau=risk_target)
+
+        self.instruments = instruments
+        self.fill = fill
+        self.window = window
+
+        self.__var = Variance()
+        self.__cov = Covariance()
+    
+    def get_var(self) -> Variance:
+        if not self.__var.empty:
+            return self.__var
+
+        covar : Covariance = self.get_cov()
+        variances = []
+        for (date, matrix) in covar.iterate():
+            variances.append(np.diag(matrix))
+
+        self.__var = Variance(pd.DataFrame(variances, index=covar._dates, columns=covar._instruments))
+
+        return self.__var
+
+    def get_cov(self) -> Covariance:
+        if self.__cov.empty:
+            # returns_matrix = self.get_returns().values
+            df = pd.DataFrame({
+                'ES': np.random.normal(0, 1, 1000) * 0.20 / 16 + 0.20 / 256,
+                'ZN': np.random.normal(0, 1, 1000) * 0.10 / 16 + 0.10 / 256,
+                'NQ': np.random.normal(0, 1, 1000) * 0.40 / 16 + 0.40 / 256
+            }, index=pd.date_range(start='2022-01-01', periods=1000))
+            returns_matrix = df.values
+
+            covariance_matrices = np.zeros((returns_matrix.shape[0], returns_matrix.shape[1], returns_matrix.shape[1]))
+
+            for i in range(1, returns_matrix.shape[0]):
+                returns = returns_matrix[i-self.window:i+1]
+                covariance_matrix = returns.T @ returns / self.window
+                covariance_matrices[i] = covariance_matrix
+
+            self.__cov = Covariance(covariance_matrices, df.index, df.columns)
+
+        return self.__cov
+
+class Simple(RiskMeasure[T]):
+    def __init__(
+        self,
+        risk_target : float,
+        instruments : list[T],
+        window : int,
+        fill : bool = True) -> None:
+        
+        super().__init__(tau=risk_target)
+
+        self.instruments = instruments
+        self.fill = fill
+        self.window = window
+
+        self.__var = Variance()
+        self.__cov = Covariance()
+    
+    def get_var(self) -> Variance:
+        if not self.__var.empty:
+            return self.__var
+
+        returns = self.get_returns()
+
+        variance = returns.var()
+
+        self.__var = Variance(variance)
+
+        return self.__var
+    
+    def get_cov(self) -> Covariance:
+        if self.__cov.empty:
+            covar = pd.DataFrame(index=self.get_product_returns().index, columns=self.get_product_returns().columns, dtype=float)
+
+            covar = self.get_product_returns().rolling(window=self.window).mean().bfill()
+
+            covar = covar.interpolate() if self.fill else self.__cov
+            covar = covar.iloc[self.window:, :]
+            self.__cov = Covariance().from_frame(covar)
+
+        return self.__cov
 
 class GARCH(RiskMeasure[T]):
     def __init__(
@@ -227,22 +426,62 @@ class GARCH(RiskMeasure[T]):
 
         return self.__var
 
-    def get_cov(self) -> pd.DataFrame:
+    def get_cov(self) -> Covariance:
         if not self.__cov.empty:
-            return self.__cov.iloc[self.minimum_observations:, :]
+            return self.__cov
 
         product_returns : np.ndarray = self.get_product_returns().dropna().values
         LT_covariances : np.ndarray = self.get_product_returns().rolling(window=self.minimum_observations).mean().bfill().values
 
-        self.__cov = pd.DataFrame(index=self.get_product_returns().index, columns=self.get_product_returns().columns, dtype=float)
-        self.__cov.iloc[0] = product_returns[0]
+        covar = pd.DataFrame(index=self.get_product_returns().index, columns=self.get_product_returns().columns, dtype=float)
+        covar.iloc[0] = product_returns[0]
 
         for i in range(1, len(product_returns)):
-            self.__cov.iloc[i] = product_returns[i] * self.weights[0] + self.__cov.iloc[i-1] * self.weights[1] + LT_covariances[i] * self.weights[2]
+            covar.iloc[i] = product_returns[i] * self.weights[0] + covar.iloc[i-1] * self.weights[1] + LT_covariances[i] * self.weights[2]
 
-        self.__cov = self.__cov.interpolate() if self.fill else self.__cov
+        covar = covar.interpolate() if self.fill else covar
+        covar = covar.iloc[self.minimum_observations:, :]
 
-        return self.__cov.iloc[self.minimum_observations:, :]
+        self.__cov = Covariance().from_frame(covar)
+
+        return self.__cov
 
     def get_jump_cov(self, percentile : float, window : int) -> pd.DataFrame:
         return super().get_jump_cov(percentile=percentile, window=window)
+
+
+if __name__ == '__main__':
+    import numpy as np
+    
+    # x = np.arange(1, 10).reshape(3, 3)
+    # print(x)
+    # print(vech(x))
+    # quit()
+
+    # df = pd.DataFrame({
+    #     'ES': np.random.normal(0, 1, 1000) * 0.20 / 16 + 0.20 / 256,
+    #     'ZN': np.random.normal(0, 1, 1000) * 0.10 / 16 + 0.10 / 256,
+    #     'NQ': np.random.normal(0, 1, 1000) * 0.40 / 16 + 0.40 / 256
+    # }, index=pd.date_range(start='2022-01-01', periods=1000))
+
+    covariance_matrices = np.array([
+        np.array([[0.1, 0.2, 0.3], [0.2, 0.5, 0.6], [0.3, 0.6, 0.9]]),
+        np.array([[0.1, 0.2, 0.3], [0.2, 0.5, 0.6], [0.3, 0.6, 0.9]]),
+        np.array([[0.1, 0.2, 0.3], [0.2, 0.5, 0.6], [0.3, 0.6, 0.9]])
+    ])
+    # covar = Covariance(covariance_matrices=covariance_matrices, instruments=['ES', 'ZN', 'NQ'])
+    # x = covar.to_frame()
+    # print(x)
+    # covar2 = Covariance().from_frame(x)
+    # print(x)
+    # print(covar2._covariance_matrices == covariance_matrices)
+    # quit()
+
+    jpm = JPMorgan(0.20, [1, 2, 3], 100)
+    # for (date, matrix) in jpm.get_cov().iterate():
+    #     print(date)
+    print(jpm.get_cov().iloc[-1])
+    print(jpm.get_var().iloc[-1])
+    # print(jpm.get_cov().iloc[-1].values)
+    # print(jpm.get_cov().loc['2023-12-01'])
+    # print(jpm.get_cov())
