@@ -5,6 +5,7 @@ from typing import Callable
 
 from algo_trade.risk_logging import LogMessage, LogSubType, LogType
 from algo_trade._constants import DAYS_IN_YEAR
+from algo_trade.portfolio import Portfolio
 
 def minimum_volatility(max_forecast_ratio : float, IDM : float, tau : float, maximum_leverage : float, instrument_weight : float | np.ndarray, annualized_volatility : float | np.ndarray) -> bool:
     """
@@ -28,6 +29,8 @@ def minimum_volatility(max_forecast_ratio : float, IDM : float, tau : float, max
             standard deviation of returns for the instrument, in same terms as tau e.g. annualized
     """
     return annualized_volatility >= (max_forecast_ratio * IDM * instrument_weight * tau) / maximum_leverage
+
+
 
 def portfolio_multiplier(
         max_portfolio_leverage : float, 
