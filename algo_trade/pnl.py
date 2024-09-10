@@ -3,6 +3,7 @@ from enum import Enum, auto
 import pandas as pd
 import numpy as np
 from algo_trade._constants import DAYS_IN_YEAR
+import matplotlib.pyplot as plt
 
 
 # Define a PnL class to handle profit and loss calculations
@@ -130,31 +131,17 @@ class PnL:
             return cagr
         raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
 
-    # Placeholder for the information ratio
-
-    def information_ratio(self, aggregate: bool = True) -> float:
-        portfolio_returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
-        print(self.__benchmark)
-        print(portfolio_returns)
-        excess_return = (portfolio_returns - self.__benchmark).mean()
-        print(excess_return)
-        tracking_error = (portfolio_returns - self.__benchmark).std()
-        print(tracking_error)
-        information_ratio = excess_return / tracking_error * np.sqrt(DAYS_IN_YEAR)
-        return information_ratio
-        ###NOTE THIS ISN"T WORKING RN LOOKING INTO IT
-
     # Placeholder for drawdown calculation
 
     def drawdown(self, aggregate: bool = True) -> pd.Series: #Currently in points,
         portfolio_returns = self.get(self.ReturnType.POINT, self.Timespan.DAILY, aggregate)
 
-        cumulative_returns = portfolio_returns.cumsum()
+        cumulative_returns = self.__capital + portfolio_returns.cumsum()
 
         running_max = cumulative_returns.cummax()
 
         # Calculate drawdown as the drop from the running maximum
-        drawdown = (running_max - cumulative_returns)
+        drawdown = (running_max - cumulative_returns) / running_max
 
         # Replace NaN and infinite values (due to initial period calculations) with 0
         drawdown = drawdown.fillna(0).replace([np.inf, -np.inf], 0)
@@ -162,26 +149,47 @@ class PnL:
         return drawdown
 
     # Placeholder for plot method
-    def plot(self) -> None:
-        raise NotImplementedError()
+    def plot(self, metrics: list = None, aggregate: bool = True) -> None:
+        if metrics is None:
+            metrics = ['returns', 'cumulative', 'drawdown']
+
+        # Create a figure and axis
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        if 'returns' in metrics:
+            returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
+            ax.plot(returns.index, returns, label='Daily Returns', color='blue', alpha=0.7)
+
+        # Plot Cumulative Returns
+        if 'cumulative' in metrics:
+            cumulative_returns = self.get(self.ReturnType.PERCENT, self.Timespan.CUMULATIVE, aggregate)
+            ax.plot(cumulative_returns.index, cumulative_returns, label='Cumulative Returns', color='green', alpha=0.7)
+
+            benchmark_cumulative_returns = (self.__benchmark + 1).cumprod() - 1
+            ax.plot(benchmark_cumulative_returns.index, benchmark_cumulative_returns,
+                    label='Cumulative Returns (Benchmark)', color='orange', alpha=0.7)
+
+        # Plot Drawdown
+        if 'drawdown' in metrics:
+            drawdown = -self.drawdown(aggregate)
+            ax.plot(drawdown.index, drawdown, label='Drawdown (%)', color='red', alpha=0.7)
+
+        # Set title and labels
+        ax.set_title("Portfolio Metrics Over Time", fontsize=16)
+        ax.set_xlabel("Date", fontsize=12)
+        ax.set_ylabel("Percentage", fontsize=12)
+
+        # Show the legend
+        ax.legend()
+
+        # Display the plot
+        plt.grid(True)
+        plt.show()
 
     # Method to calculate tracking error with another series
-    def tracking_error(self, other: pd.Series) -> ...:
-        """Returns the tracking error between the PnL of the portfolio and another series (or maybe another PnL object?)"""
-        raise NotImplementedError()
-
-    # Method to calculate regression with another series
-    def regression(self, other: pd.Series) -> ...:
-        """Returns the regression between the PnL of the portfolio and another series (or maybe another PnL object?)"""
-        raise NotImplementedError()
-
-        #need to work on issues with IR for this to work
-    """def get_sortino_ratio(self, aggregate: bool = True, target: float = 0.0) -> pd.Series:
-        returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
-        downside_returns = returns[returns < target]
-        downside_deviation = downside_returns.std()
-        mean_return = returns.mean()
-        return (mean_return - target) / downside_deviation * np.sqrt(DAYS_IN_YEAR)"""
+    def tracking_error(self, other: pd.Series) -> auto():
+        tracking_error = np.std(other - self.__benchmark)
+        return tracking_error * DAYS_IN_YEAR ** 0.5
 
     # Method to calculate Skewness
     def get_skewness(self, aggregate: bool = True) -> pd.Series:
@@ -198,18 +206,18 @@ class PnL:
         drawdown = self.drawdown(aggregate)
         return drawdown.max()
 
-    # Method to calculate Calmar Ratio; Also need to work on percent based drawdown (should be very easy) and work on percent returns (need to talk to chris first)
-    '''def get_calmar_ratio(self, aggregate: bool = True) -> pd.Series:
-        annualized_return = self.get_mean_return(self.Timespan.ANNUALIZED, aggregate)
+    # Method to calculate Calmar Ratio:
+    def get_calmar_ratio(self, aggregate: bool = True) -> pd.Series:
+        returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate) * DAYS_IN_YEAR ** 0.5
         max_drawdown = self.get_max_drawdown(aggregate)
-        return annualized_return / max_drawdown'''
+        return returns.mean() / max_drawdown
 
-    # Method to calculate Information Ratio; Jank right now as excess returns are calculated as a percentage of capital (will look into weighting unnaggregate returns)
+    # Method to calculate Information Ratio;
     def get_information_ratio(self, aggregate: bool = True) -> pd.Series:
         portfolio_returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
-        tracking_error = np.std(portfolio_returns - self.__benchmark)
-        excess_return = (portfolio_returns - self.__benchmark).mean()
-        return excess_return / tracking_error * np.sqrt(DAYS_IN_YEAR)
+        tracking_error = self.tracking_error(portfolio_returns)
+        excess_return = (portfolio_returns.mean() - self.__benchmark.mean()) * np.sqrt(DAYS_IN_YEAR)
+        return excess_return / tracking_error
 
     # Method to calculate Tail Ratio (95th percentile return / 5th percentile return)
     def get_tail_ratio(self, aggregate: bool = True) -> pd.Series:
