@@ -1,11 +1,11 @@
 import os
 from typing import Any, Dict, Tuple, Optional
 from abc import ABC
+import asyncio
 import databento as db
 import pandas as pd
-from enum import Enum 
+from enum import Enum
 from dotenv import load_dotenv
-
 from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
 load_dotenv()
@@ -151,6 +151,31 @@ class Instrument():
         """
         raise NotImplementedError()
 
+    async def add_data(self, agg: Agg, roll_type: RollType, contract_type: ContractType) -> None:
+        """
+        Asynchronously add data to the instrument.
+        """
+        client = db.Historical(key=os.getenv("DATABENTO_KEY"))
+        
+        contract = Contract(
+            instrument=self.symbol,
+            dataset=self.dataset,
+            schema=agg,
+        )
+        
+        try:
+            await contract.construct_async(client, roll_type, contract_type)
+            self._process_and_store_data(contract, agg, roll_type, contract_type)
+        except Exception as e:
+            print(f"Error fetching data for {self.symbol}: {e}")
+
+    def _process_and_store_data(self, contract: Contract, agg: Agg, roll_type: RollType, contract_type: ContractType):
+        # Process and store the fetched data
+        if roll_type == RollType.CALENDAR and contract_type == ContractType.FRONT:
+            self.front = contract
+        elif roll_type == RollType.CALENDAR and contract_type == ContractType.BACK:
+            self.back = contract
+        # Add more conditions if needed for other roll types and contract types
 
 class Future(Instrument):
     """
@@ -170,8 +195,8 @@ class Future(Instrument):
     -   add_contract(contract: Contract, contract_type: ContractType) -> None - Adds a contract to the future instrument
     """
 
-    def __init__(self, symbol: str, dataset: str, multiplier: float = 1.0):
-        super().__init__(symbol, dataset)
+    def __init__(self, symbol: str, dataset: str, multiplier: float):
+        super().__init__(symbol, dataset, multiplier)
         self.multiplier: float = multiplier
         self.contracts: dict[str, Contract] = {}
         self.asset = ASSET.FUT
