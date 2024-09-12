@@ -6,7 +6,7 @@ sys.path.append('../risk_management')
 import unittest
 
 import pandas as pd
-from risk_measures import risk_measures
+from algo_trade.risk_measures import RiskMeasure
 
 
 class TestRiskMetrics(unittest.TestCase):
@@ -16,13 +16,13 @@ class TestRiskMetrics(unittest.TestCase):
         instruments = ['ES_data', 'ZN_data', 'RB_data']
 
         for instrument in instruments:
-            self.trend_tables[instrument] = pd.read_parquet(f'risk_measures/unittesting/data/{instrument}.parquet')
+            self.trend_tables[instrument] = pd.read_parquet(f'data/{instrument}.parquet')
 
-        self.risk_calculations = risk_measures.RiskMeasures(self.trend_tables, (0.01, 0.01, 0.98), 100)
+        self.risk_calculations = RiskMeasure(self.trend_tables, (0.01, 0.01, 0.98), 100)
         self.risk_calculations.construct()
 
     def test_risk_calculations(self):
-        self.assertIsInstance(self.risk_calculations, risk_measures.RiskMeasures)
+        self.assertIsInstance(self.risk_calculations, RiskMeasure)
         self.assertIsInstance(self.risk_calculations.daily_returns, pd.DataFrame)
         self.assertIsInstance(self.risk_calculations.product_returns, pd.DataFrame)
         self.assertIsInstance(self.risk_calculations.GARCH_variances, pd.DataFrame)

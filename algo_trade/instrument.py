@@ -3,16 +3,12 @@ from typing import Any, Dict, Tuple, Optional
 from abc import ABC
 import databento as db
 import pandas as pd
-import toml 
 from enum import Enum 
-from algo_trade.contract import ASSET, DATASET, Agg, RollType, Contract, ContractType
+from dotenv import load_dotenv
 
-# Building out class structure to backadjust the futures data
-base_dir = os.path.dirname(os.path.dirname(__file__))
-config_dir = os.path.join(base_dir, "config")
-config_path = os.path.join(config_dir, "config.toml")
+from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
-config: Dict[str, Any] = toml.load(config_path)
+load_dotenv()
 
 class Instrument():
     """
@@ -34,9 +30,7 @@ class Instrument():
     def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0):
         self._symbol = symbol
         self._dataset = dataset
-        self.client: db.Historical = db.Historical(
-            config["databento"]["api_historical"]
-        )
+        self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
         self.asset: ASSET
         self.multiplier = multiplier
 
@@ -338,9 +332,35 @@ class Future(Instrument):
         self.contracts[name] = contract
         if contract_type == ContractType.FRONT:
             self.front = contract
-            self.price = contract.get_backadjusted()
+            self.price = contract.backadjusted
         elif contract_type == ContractType.BACK:
             self.back = contract
+
+    def add_norgate_data(self, name: Optional[str] = None) -> None:
+        """
+        Adds data to the future instrument but first creates a bar object based on the schema
+
+        Args:
+        name: Optional[str] - The name of the bar
+
+        Returns:
+        None
+        """
+        contract: Contract = Contract(
+            instrument=self.symbol,
+            dataset=DATASET.from_str(self.dataset),
+            schema=Agg.DAILY,
+            catalog=CATALOG.NORGATE,
+        )
+
+        if name is None:
+            name = f"{contract.get_instrument()}"
+
+        contract.construct_norgate()
+
+        self.contracts[name] = contract
+        self.front = contract
+        self.price = contract.backadjusted
 
     @property
     def percent_returns(self) -> pd.Series:

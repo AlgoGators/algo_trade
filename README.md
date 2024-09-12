@@ -1,5 +1,8 @@
 # Algo-Trade
 
+
+![workflow](https://github.com/AlgoGators/algo_trade/actions/workflows/tests.yml/badge.svg)
+
 ## Running ib-gateway:
 This relies on [gnzsnz](https://github.com/gnzsnz)'s [ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker) repository.
 1. Clone the repository to desired machine.
