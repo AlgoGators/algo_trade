@@ -16,7 +16,7 @@ from tests.utils import PriceSeries
 def mockedPortfolioMultiplier(*args, **kwargs) -> float:
     return 1.0
 
-def mockedPositionLimit(*args) -> np.ndarray:
+def mockedPositionLimit(*args, **kwargs) -> np.ndarray:
     return args[1]
 
 class SimRiskObject():
