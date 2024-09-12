@@ -139,6 +139,11 @@ class Covariance:
         for n in range(self._covariance_matrices.shape[0]):
             yield self._dates[n], self._covariance_matrices[n]
 
+    def dropna(self):
+        valid_indices = ~np.isnan(self._covariance_matrices).any(axis=(1, 2))
+        self._covariance_matrices = self._covariance_matrices[valid_indices]
+        self._dates = self._dates[valid_indices]
+
     @property
     def empty(self) -> bool:
         return self._covariance_matrices is None
@@ -166,7 +171,7 @@ class Covariance:
 
         def __getitem__(self, key):
             covariance_matrix = self.parent._covariance_matrices[key]
-            return pd.DataFrame(covariance_matrix, index=self.parent._instruments, columns=self.parent._instruments)
+            return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
 
     class _LocIndexer:
         def __init__(self, parent : 'Covariance') -> None:
@@ -174,7 +179,7 @@ class Covariance:
 
         def __getitem__(self, key):
             covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
-            return pd.DataFrame(covariance_matrix, index=self.parent._instruments, columns=self.parent._instruments)
+            return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
         
 
 T = TypeVar('T', bound=Instrument)
@@ -267,11 +272,116 @@ class RiskMeasure(ABC, Generic[T]):
             window_covariances = covar_df.iloc[i-window:i]
             jump_covariances.iloc[i] = window_covariances.quantile(percentile)
 
-        jump_covariances = jump_covariances.interpolate() if self.fill else jump_covariances
+        jump_covariances = jump_covariances.interpolate().bfill() if self.fill else jump_covariances
 
         self.__jump_covariances = Covariance().from_frame(jump_covariances)
 
         return self.__jump_covariances
+
+class CRV(RiskMeasure[T]):
+    def __init__(self, risk_target : float, instruments : list[T], window : int, span : int, fill : bool = True) -> None:
+        super().__init__(tau=risk_target)
+
+        self.instruments = instruments
+        self.fill = fill
+        self.window = window
+        self.span = span
+
+        self.__var = Variance()
+        self.__cov = Covariance()
+        self.__weekly_returns = pd.DataFrame()
+
+    def get_var(self) -> Variance:
+        if not self.__var.empty:
+            return self.__var
+
+        returns = self.get_returns()
+
+        daily_exp_std = returns.ewm(span=self.span).std()
+        annualized_exp_std : pd.DataFrame = daily_exp_std * (DAYS_IN_YEAR ** 0.5)
+
+        ten_year_vol = annualized_exp_std.rolling(
+            window=DAYS_IN_YEAR * 10, min_periods=1
+        ).mean()
+        weighted_vol = 0.3 * ten_year_vol + 0.7 * annualized_exp_std
+        weighted_vol.dropna(inplace=True)
+        weighted_vol = weighted_vol.interpolate() if self.fill else weighted_vol
+
+        self.__var = Variance(weighted_vol / (DAYS_IN_YEAR ** 0.5) ** 2)
+
+        return self.__var
+    
+    def get_weekly_returns(self) -> pd.DataFrame:
+        if not self.__weekly_returns.empty:
+            return self.__weekly_returns
+
+        # add 1 to each return to get the multiplier
+        return_multipliers = self.get_returns() + 1
+
+        # ! there is some statistical error here because the first weekly return could be
+        # ! less than 5 returns but this should be insignificant for the quantity of returns
+        n = len(return_multipliers)
+        complete_groups_index = n // 5 * 5  # This will give the largest number less than n that is a multiple of 5
+        sliced_return_multipliers = return_multipliers[:complete_groups_index]
+
+        # group into chunks of 5, and then calculate the product of each chunk, - 1 to get the return
+        weekly_returns = sliced_return_multipliers.groupby(np.arange(complete_groups_index) // 5).prod() - 1
+
+        # Use the last date in each chunk
+        weekly_returns.index = self.get_returns().index[4::5]
+
+        nan_mask = self.get_returns().isna().copy()
+
+        weekly_returns = weekly_returns.where(~nan_mask.iloc[4::5])
+
+        self.__weekly_returns = weekly_returns.interpolate() if self.fill else weekly_returns
+
+        return self.__weekly_returns
+
+    def get_corr(self) -> pd.DataFrame:
+        return self.get_weekly_returns().rolling(window=self.window).corr()
+
+    def get_cov(self) -> Covariance:
+        if not self.__cov.empty:
+            return self.__cov
+
+        rolling_corr : pd.DataFrame = self.get_corr()
+        vol : pd.DataFrame = self.get_var().to_standard_deviation().annualize().to_frame()
+
+        # weekly_dates = rolling_corr.index.levels[0]
+        weekly_dates = rolling_corr.index.get_level_values(0).unique()
+
+        vol : pd.DataFrame = vol.reindex(weekly_dates)
+
+        if len(vol) != len(weekly_dates):
+            raise ValueError("vol and dates do not match")
+
+        covs = []
+
+        all_dates = self.get_returns().index
+
+        last_cov = np.zeros((len(vol.columns), len(vol.columns)))
+        last_cov[last_cov == 0] = np.nan
+
+        for date in all_dates:
+            if date in weekly_dates:
+                vol_matrix : pd.Series = vol.loc[date]
+                corr_matrix = rolling_corr.xs(date, level=0)
+                cov = np.diag(vol_matrix.values) @ corr_matrix.values @ np.diag(vol_matrix.values)
+                last_cov = cov            
+            covs.append(last_cov)
+
+        i : int = 0
+        while np.isnan(covs[i]).any():
+            i += 1
+
+        covs = covs[i:]
+        all_dates = all_dates[i:]
+
+        self.__cov = Covariance(np.array(covs), all_dates, vol.columns)
+
+        return self.__cov
+
 
 class EqualWeight(RiskMeasure[T]):
     def __init__(
