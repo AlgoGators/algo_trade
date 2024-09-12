@@ -196,6 +196,7 @@ class Instrument:
         # Process and store the fetched data
         if roll_type == RollType.CALENDAR and contract_type == ContractType.FRONT:
             self.front = contract
+            self.price = contract.backadjusted
         elif roll_type == RollType.CALENDAR and contract_type == ContractType.BACK:
             self.back = contract
         # Add more conditions if needed for other roll types and contract types
