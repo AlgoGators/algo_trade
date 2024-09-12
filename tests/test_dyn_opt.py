@@ -195,6 +195,7 @@ class TestDynOpt(unittest.TestCase):
         portfolio : Portfolio = TestPortfolio(instruments=instruments, risk_target=tau, capital=capital)
 
         portfolio.positions = ideal_positions
+        portfolio.positions.index = pd.to_datetime(portfolio.positions.index)
         sim_risk_object = SimRiskObject()
         sim_risk_object.covar = Covariance().from_frame(covariances)
         sim_risk_object.jump_covar = Covariance().from_frame(jump_covariances)
