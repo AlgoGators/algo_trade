@@ -194,12 +194,16 @@ def dyn_opt(
     
     unadj_prices = pd.concat([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
     covariances : Covariance = portfolio.risk_object.get_cov()
+    covariances.dropna()
     jump_covariances : Covariance = portfolio.risk_object.get_jump_cov(0.95, 100)
+    jump_covariances.dropna()
     volume = pd.concat([instrument.front.volume.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
     
     costs_per_contract = pd.DataFrame(index=portfolio.positions.index, columns=portfolio.positions.columns).astype(np.float64).fillna(cost_per_contract)
-    
-    portfolio.positions, costs_per_contract, volume, unadj_prices,instrument_weights = reindex((portfolio.positions, costs_per_contract, volume, unadj_prices, instrument_weights))
+
+    portfolio.positions = portfolio.positions.reindex(pd.Index.intersection(portfolio.positions.index, covariances.index))
+
+    portfolio.positions, costs_per_contract, volume, unadj_prices, instrument_weights = reindex((portfolio.positions, costs_per_contract, volume, unadj_prices, instrument_weights))
 
     covariances.reindex(portfolio.positions.index)
     jump_covariances.reindex(portfolio.positions.index)
