@@ -3,7 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 import asyncio
 
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, TypeVar, Optional
 
 from algo_trade.instrument import Instrument, Future, RollType, ContractType, Agg
 from algo_trade.risk_measures import RiskMeasure
@@ -17,8 +17,8 @@ class Strategy(ABC, Generic[T]):
 
     def __init__(self, capital: float):
         self.instruments: list[T] = []
-        self._capital = capital
-        self.risk_object : RiskMeasure = None
+        self._capital : float = capital
+        self.risk_object : RiskMeasure[T] | None = None
         self.rules: list[Callable] = []
         self.scalars: list[float] = []
 
@@ -37,11 +37,11 @@ class Strategy(ABC, Generic[T]):
         return self._positions
 
     @positions.setter
-    def positions(self, value):
+    def positions(self, value : pd.DataFrame) -> None:
         self._positions = value
 
     @abstractmethod
-    async def fetch_data(self):
+    async def fetch_data(self) -> None:
         """
         The Fetch data method is the a required initialization step within designing a strategy. This method is used to fetch the data for the instruments within the strategy. It is strategy specific and should be implemented by the user.
         """
