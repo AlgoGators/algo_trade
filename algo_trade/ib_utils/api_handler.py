@@ -1,23 +1,27 @@
-import ipaddress
 import typing
-from decimal import Decimal
 import time
 import threading
 import logging
-from ibapi.contract import Contract
-from ibapi.order import Order
+import datetime
+from decimal import Decimal
+from contextlib import contextmanager
+import ipaddress
+
 from ibapi.client import EClient
 from ibapi.order_state import OrderState
 from ibapi.wrapper import EWrapper
-from ..src._contract import Contract
-from ..src._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
-from ..src._type_hints import ContractDetails
-from ..src._enums import AccountSummaryTag
+from ibapi.order import Order
+
+from algo_trade.ib_utils._enums import AccountSummaryTag
+from algo_trade.ib_utils._contract import Contract
+from algo_trade.ib_utils._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
+from algo_trade.ib_utils._type_hints import ContractDetails
+from algo_trade.ib_utils.account import Account, Position, Trade
 
 class IBAPI(EClient, EWrapper):
     def __init__(self, condition : threading.Condition) -> None:
         EClient.__init__(self, self)
-        self.positions : dict[str, list[Contract, Decimal]] = {}
+        self.positions : list[Position] = [] #dict[str, list[Contract, Decimal]] = {}
         self.contract_details : dict[str, ContractDetails] = {}
         self.contracts_margin : dict[str, Decimal] = {}
         self.account_summary : dict[str, list[tuple[str|float|Decimal|int, str]]] = {}
@@ -39,7 +43,10 @@ class IBAPI(EClient, EWrapper):
             self.condition.notify()
 
     def position(self, account : str, contract : Contract, position : Decimal, avgCost : Decimal) -> None:
-        self.positions[contract.conId] = [Contract(contract=contract), position] #* converts to our abstract of contract
+        #* converts to our abstract of contract
+        #* note ibkr means quantity when it says position :/
+        self.positions.append(Position(Contract(contract=contract), position))
+        # self.positions[contract.conId] = [Contract(contract=contract), position] 
 
     def positionEnd(self) -> None:
         with self.condition:
@@ -102,37 +109,102 @@ class APIHandler:
             raise TimeoutError(f"Failed to retrieve account summary for {tag}")
         return self.app.account_summary
 
-    def get_initial_margin(self) -> tuple[str, Decimal]:
+    # def get_expirations(
+    #         self,
+    #         contract : Contract) -> list[str]:
+    #     """
+    #     Returns list of strings, each corresponding to an 8 digit date YYYYMMDD for contract expiry
+    #     """
+    #     possible_contracts : dict[str, Contract] = self.get_contract_details(contract)
+    #     return [x.lastTradeDateOrContractMonth for x in possible_contracts.values()]
+
+    def get_soonest_valid_expiry(self, contract : Contract, min_DTE : int) -> str:
+        """
+        Gets the next expiration date for a contract that is at least min_DTE days away
+        """
+        # expirations : list[str] = self.get_expirations(contract)
+        possible_contracts : dict[str, Contract] = self.get_contract_details(contract)
+        expirations : list[str] = [x.lastTradeDateOrContractMonth for x in possible_contracts.values()]
+        expirations.sort() #@ Nice thing about YYYYMMDD is that it's sortable
+        # expirations = sorted(expirations)
+
+        #* finds the first expiration that meets the condition, else None
+        #* ... likely too Pythonic and could be rewritten for better clarity
+        expiration_date = next(
+            (
+                datetime.datetime.strptime(expiration, "%Y%m%d").strftime("%Y%m%d")
+                for expiration in expirations
+                if datetime.datetime.strptime(expiration, "%Y%m%d").date() >= datetime.date.today() + datetime.timedelta(days=min_DTE)
+            ),
+            None
+        )
+
+        if expiration_date is None:
+            raise ValueError(f"Contract {contract} has no valid contract months")
+
+        return expiration_date
+ 
+
+    def initialize_desired_contracts(self, account : Account, min_DTE) -> None:
+        """
+        Takes an account object and finds the nearest contracts with at least X days until expiry.
+        Where X is account.min_DTE; operates inplace
+        """
+        for position in account.positions:
+            expiration_date : str = self.get_soonest_valid_expiry(position.contract, min_DTE)
+            position.contract.lastTradeDateOrContractMonth = expiration_date
+            desired_contract : dict[str, Contract] = self.get_contract_details(position.contract)
+
+            if len(desired_contract.values()) == 0:
+                raise Exception(f"Contract {position.contract} has no suitable contract months")
+            if len(desired_contract.values()) > 1:
+                raise Exception(f"Contract {position.contract} has multiple valid contract months, please specify one")
+
+            position.contract = desired_contract.popitem()[1]
+
+    @property
+    def initial_margin(self) -> tuple[str, Decimal]:
         initial_margin = self.__get_account_summary(AccountSummaryTag.FULL_INIT_MARGIN_REQ)[AccountSummaryTag.FULL_INIT_MARGIN_REQ][0]
         return {initial_margin[1] : Decimal(initial_margin[0])}
 
-    def get_maintenance_margin(self) -> tuple[str, Decimal]:
+    @property
+    def maintenance_margin(self) -> tuple[str, Decimal]:
         maintenance_margin = self.__get_account_summary(AccountSummaryTag.FULL_MAINT_MARGIN_REQ)[AccountSummaryTag.FULL_MAINT_MARGIN_REQ][0]
         return {maintenance_margin[1] : Decimal(maintenance_margin[0])}
 
-    def get_cash_balances(self) -> dict[str, Decimal]:
+    @property
+    def cash_balances(self) -> dict[str, Decimal]:
         account_summary = self.__get_account_summary(AccountSummaryTag.LEDGER)
         return {currency: Decimal(value) for tag, values in account_summary.items() if tag == "TotalCashBalance" for value, currency in values}
 
-    def get_exchange_rates(self) -> dict[str, Decimal]:
+    @property
+    def exchange_rates(self) -> dict[str, Decimal]:
         account_summary = self.__get_account_summary(AccountSummaryTag.LEDGER)
         return {currency: Decimal(value) for tag, values in account_summary.items() if tag == "ExchangeRate" for value, currency in values}
 
-    def get_current_positions(self) -> dict[str, list[Contract, Decimal]]:
+    @property
+    def current_positions(self) -> list[Position]:
         with self.app.condition:
-            self.app.positions = {} # Clear positions dictionary
+            self.app.positions = [] # Clear positions list
             self.app.reqPositions()
             timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out:
             raise TimeoutError("Failed to retrieve current positions")
 
-        positions : dict[str, list[Contract, Decimal]] = self.app.positions
+        positions : list[Position] = self.app.positions
 
         #! necessary to get exchange and other pieces of data for the contract
         #* hate this, but contract generated doesn't exist in their own DB
-        for conId, (_, quantity) in positions.items():
-            contract_by_ID = Contract(conId=conId)
-            positions[conId] = [self.get_contract_details(contract_by_ID)[conId], quantity]
+        for position in positions:
+        # for conId, (_, quantity) in positions.items():
+            contract_by_ID = Contract(conId=position.contract.conId)
+            positions.append(
+                Position(
+                    contract=self.get_contract_details(contract_by_ID)[position.contract.conId],
+                    quantity=position.quantity
+                )
+            )
+            # positions[conId] = [self.get_contract_details(contract_by_ID)[conId], quantity]
         return positions
 
     def get_contract_details(
@@ -170,11 +242,29 @@ class APIHandler:
 
     def place_orders(
             self,
-            trades : list[tuple[Contract, Order]],
+            trades : list[Trade],
             trading_algorithm : typing.Callable) -> None:
         self.cancel_outstanding_orders()
-        for contract, order in trades:
-            logging.warning(f"{order.action} {order.totalQuantity} {contract.symbol} {contract.lastTradeDateOrContractMonth} on {contract.exchange} using {trading_algorithm.__name__}")
-            trading_algorithm(self.app, contract, order)
+        for trade in trades:
+            logging.warning(f"{trade.order.action} {trade.order.totalQuantity} {trade.contract.symbol} {trade.contract.lastTradeDateOrContractMonth} on {trade.contract.exchange} using {trading_algorithm.__name__}")
+            trading_algorithm(self.app, trade.contract, trade.order)
         if WAIT_FOR_TRADES:
             self.__wait_for_trades()
+
+    def __del__(self) -> None:
+        """
+        Destructor ensures disconnect when picked up by garbage collector
+        """
+        self.disconnect()
+
+@contextmanager
+def api_handler_context(
+    IP_ADDRESS : ipaddress.IPv4Address,
+    PORT : int,
+    CLIENT_ID : int):
+    handler = APIHandler(IP_ADDRESS, PORT, CLIENT_ID)
+    handler.connect()
+    try:
+        yield handler
+    finally:
+        handler.disconnect()
