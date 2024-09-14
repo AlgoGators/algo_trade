@@ -7,7 +7,7 @@ The function includes the collection of all the instruments, the creation of the
 """
 
 from algo_trade.strategy import Strategy
-from algo_trade.portfolio import Portfolio
+from algo_trade.trading_system import TradingSystem
 from algo_trade.implementations import TrendFollowing
 from algo_trade.instrument import Future, RollType, ContractType, Agg, initialize_instruments
 from algo_trade.pnl import PnL
@@ -40,7 +40,7 @@ def main():
     instruments: list[Future] = initialize_instruments()
     
     # Create a portfolio
-    portfolio = Portfolio(
+    trading_system = TradingSystem(
         strategies=[
             (1.0, TrendFollowing(instruments, risk_target=0.05, capital=1000000))
         ]
