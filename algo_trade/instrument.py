@@ -27,13 +27,15 @@ class Instrument():
 
     """
 
-    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0, ib_symbol = None):
+    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0, ib_symbol : str | None = None):
         self._symbol = symbol
         self._ib_symbol = ib_symbol if ib_symbol is not None else symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
         self.asset: ASSET
         self.multiplier = multiplier
+        self._currency = currency
+        self._exchange = exchange
 
         if instrument_type is not None:
             self.__class__ = instrument_type.value
@@ -63,6 +65,32 @@ class Instrument():
         str: The IBKR symbol of the instrument
         """
         return self._ib_symbol
+
+    @property
+    def currency(self) -> str:
+        """
+        Returns the currency of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The currency the instrument is denominated in
+        """
+        return self._currency
+    
+    @property
+    def exchange(self) -> str:
+        """
+        Returns the exchange the instrument trades on
+
+        Args:
+        None
+
+        Returns:
+        str: The exchange the instrument trades on
+        """
+        return self._exchange
 
     @property
     def dataset(self) -> str:
@@ -425,7 +453,18 @@ class InstrumentType(Enum):
     
 
 def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
-    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType']), row.loc['multiplier'], row.loc['ibSymbol']) for n, row in instrument_df.iterrows()]
+    return [
+        Instrument(
+            symbol=row.loc['dataSymbol'],
+            dataset=row.loc['dataSet'],
+            currency=row.loc['currency'],
+            exchange=row.loc['exchange'],
+            instrument_type=InstrumentType.from_str(row.loc['instrumentType']),
+            multiplier=row.loc['multiplier'],
+            ib_symbol=row.loc['ibSymbol']
+        )
+        for n, row in instrument_df.iterrows()
+    ]
 
 if __name__ == "__main__":
     # lst = initialize_instruments(pd.read_csv('data/contract.csv'))
