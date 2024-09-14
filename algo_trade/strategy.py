@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
+import asyncio
 
 from typing import Callable, Generic, TypeVar, Optional
 
@@ -40,7 +41,7 @@ class Strategy(ABC, Generic[T]):
         self._positions = value
 
     @abstractmethod
-    def fetch_data(self) -> None:
+    async def fetch_data(self) -> None:
         """
         The Fetch data method is the a required initialization step within designing a strategy. This method is used to fetch the data for the instruments within the strategy. It is strategy specific and should be implemented by the user.
         """
@@ -48,11 +49,15 @@ class Strategy(ABC, Generic[T]):
 
 class FutureDataFetcher:
     @staticmethod
-    def fetch_front(instruments : list[Future]) -> None:
-        for instrument in instruments:
+    async def fetch_front(instruments: list[Future]) -> None:
+        await asyncio.gather(*[
             instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
+            for instrument in instruments
+        ])
     
     @staticmethod
-    def fetch_back(instruments : list[Future]) -> None:
-        for instrument in instruments:
+    async def fetch_back(instruments: list[Future]) -> None:
+        await asyncio.gather(*[
             instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.BACK)
+            for instrument in instruments
+        ])
