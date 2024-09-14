@@ -27,7 +27,7 @@ class TradingSystem(ABC, Generic[T]):
         self.trading_system_rules : list[Callable] = []
 
     @property
-    def multipliers(self):
+    def multipliers(self) -> pd.DataFrame:
         if not hasattr(self, '_multipliers'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -39,6 +39,34 @@ class TradingSystem(ABC, Generic[T]):
             self._multipliers = pd.DataFrame(multipliers, index=[0])
         
         return self._multipliers
+
+    @property
+    def exchanges(self) -> pd.DataFrame:
+        if not hasattr(self, '_exchanges'):
+            if self.instruments is None:
+                raise ValueError("No instruments in the TradingSystem")
+
+            exchanges = {}
+            for instrument in self.instruments:
+                exchanges[instrument.name] = instrument.exchange
+
+            self._exchanges = pd.DataFrame(exchanges, index=[0])
+
+        return self._exchanges
+    
+    @property
+    def currencies(self) -> pd.DataFrame:
+        if not hasattr(self, '_currencies'):
+            if self.instruments is None:
+                raise ValueError("No instruments in the TradingSystem")
+
+            currencies = {}
+            for instrument in self.instruments:
+                currencies[instrument.name] = instrument.currency
+
+            self._currencies = pd.DataFrame(currencies, index=[0])
+
+        return self._currencies
 
     @property
     def prices(self) -> pd.DataFrame:
@@ -84,7 +112,14 @@ class TradingSystem(ABC, Generic[T]):
         key_pairs = {instrument.name: instrument.ib_symbol for instrument in self.instruments}
 
         ibkr_positions : list[Position] = [
-            Position(Contract(symbol=key_pairs[column], multiplier=self.multipliers[column].iloc[0]), Decimal(int(positions[column].iloc[0])))
+            Position(
+                Contract(
+                    symbol=key_pairs[column],
+                    multiplier=self.multipliers[column].iloc[0],
+                    exchange=self.exchanges[column].iloc[0],
+                    currency=self.currencies[column].iloc[0]
+                ),
+                Decimal(int(positions[column].iloc[0])))
             for column in positions.columns
         ]
 
