@@ -5,7 +5,7 @@ import logging
 from typing import Callable
 from functools import reduce
 
-from algo_trade.portfolio import Portfolio
+from algo_trade.trading_system import Portfolio
 from algo_trade.instrument import Future
 from algo_trade.risk_logging import CsvFormatter
 from algo_trade.risk_measures import Covariance
