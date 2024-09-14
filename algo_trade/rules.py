@@ -73,11 +73,11 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] = (
                 instrument.front
-                .get_backadjusted()
+                .backadjusted
                 .ewm(span=t1, min_periods=2, adjust=False)
                 .mean()
                 - instrument.front
-                .get_backadjusted()
+                .backadjusted
                 .ewm(span=t2, min_periods=2, adjust=False)
                 .mean()
             )
