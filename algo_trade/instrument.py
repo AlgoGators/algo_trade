@@ -6,9 +6,44 @@ from enum import Enum
 from dotenv import load_dotenv
 
 from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
-from algo_trade._enums import SecurityType
 
 load_dotenv()
+
+class SecurityType(Enum):
+    FUTURE = ('Future', 'FUT')
+
+    def __init__(self, obj_name, string):
+        self._obj_name = obj_name
+        self.string = string
+
+    @property
+    def obj(self):
+        # Dynamically resolve the object class when accessed
+        if isinstance(self._obj_name, str):
+            return globals()[self._obj_name]
+        return self._obj_name
+
+    @classmethod
+    def from_str(cls, value: str) -> "SecurityType":
+        """
+        Converts a string to a SecurityType enum based on the value to the Enum name and not value
+        so "FUTURE" -> FUTURE
+
+        Args:
+            - value: str - The value to convert to a SecurityType enum
+
+        Returns:
+            - SecurityType: The SecurityType enum
+        """
+        try:
+            return cls[value.upper()]
+        except ValueError:
+            # If exact match fails, look for a case-insensitive match
+            for member in cls:
+                if member.name.lower() == value.lower():
+                    return member
+
+            raise ValueError(f"{value} is not a valid {cls.__name__}")
 
 class Instrument():
     """

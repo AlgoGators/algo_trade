@@ -8,11 +8,11 @@ from decimal import Decimal
 
 # Internal
 from algo_trade.strategy import Strategy
-from algo_trade.instrument import Instrument
+from algo_trade.instrument import Instrument, SecurityType
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
-from algo_trade.account import Account, Position
-from algo_trade.ib_utils.src._contract import Contract
+from algo_trade.ib_utils.account import Account, Position
+from algo_trade.ib_utils._contract import Contract
 
 load_dotenv()
 
@@ -27,7 +27,23 @@ class TradingSystem(ABC, Generic[T]):
         self.trading_system_rules : list[Callable] = []
 
     @property
-    def multipliers(self) -> pd.DataFrame:
+    def security_types(self) -> pd.DataFrame[SecurityType]: 
+        #* existence of this method, is likely a risk in & of itself, 
+        #* because TradingSystems should be homogenous instrument types
+        if not hasattr(self, '_security_types'):
+            if self.instruments is None:
+                raise ValueError("No instruments in the TradingSystem")
+            
+            security_types = {}
+            for instrument in self.instruments:
+                security_types[instrument.name] = instrument.security_type
+
+            self._security_types : pd.DataFrame[SecurityType] = pd.DataFrame(security_types, index=[0], dtype=SecurityType)
+
+        return self._security_types
+
+    @property
+    def multipliers(self) -> pd.DataFrame[float]:
         if not hasattr(self, '_multipliers'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -36,12 +52,12 @@ class TradingSystem(ABC, Generic[T]):
             for instrument in self.instruments:
                 multipliers[instrument.name] = instrument.multiplier
 
-            self._multipliers = pd.DataFrame(multipliers, index=[0])
+            self._multipliers = pd.DataFrame(multipliers, index=[0], dtype=float)
         
         return self._multipliers
 
     @property
-    def exchanges(self) -> pd.DataFrame:
+    def exchanges(self) -> pd.DataFrame[str]:
         if not hasattr(self, '_exchanges'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -50,12 +66,12 @@ class TradingSystem(ABC, Generic[T]):
             for instrument in self.instruments:
                 exchanges[instrument.name] = instrument.exchange
 
-            self._exchanges = pd.DataFrame(exchanges, index=[0])
+            self._exchanges = pd.DataFrame(exchanges, index=[0], dtype=str)
 
         return self._exchanges
     
     @property
-    def currencies(self) -> pd.DataFrame:
+    def currencies(self) -> pd.DataFrame[str]:
         if not hasattr(self, '_currencies'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -64,7 +80,7 @@ class TradingSystem(ABC, Generic[T]):
             for instrument in self.instruments:
                 currencies[instrument.name] = instrument.currency
 
-            self._currencies = pd.DataFrame(currencies, index=[0])
+            self._currencies = pd.DataFrame(currencies, index=[0], dtype=str)
 
         return self._currencies
 
@@ -117,7 +133,8 @@ class TradingSystem(ABC, Generic[T]):
                     symbol=key_pairs[column],
                     multiplier=self.multipliers[column].iloc[0],
                     exchange=self.exchanges[column].iloc[0],
-                    currency=self.currencies[column].iloc[0]
+                    currency=self.currencies[column].iloc[0],
+                    secType=self.security_types[column].iloc[0].string
                 ),
                 Decimal(int(positions[column].iloc[0])))
             for column in positions.columns
