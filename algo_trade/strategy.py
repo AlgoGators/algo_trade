@@ -49,14 +49,14 @@ class Strategy(ABC, Generic[T]):
 
 class FutureDataFetcher:
     @staticmethod
-    async def fetch_front(instruments: List[Future]) -> None:
+    async def fetch_front(instruments: list[Future]) -> None:
         await asyncio.gather(*[
             instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
             for instrument in instruments
         ])
     
     @staticmethod
-    async def fetch_back(instruments: List[Future]) -> None:
+    async def fetch_back(instruments: list[Future]) -> None:
         await asyncio.gather(*[
             instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.BACK)
             for instrument in instruments
