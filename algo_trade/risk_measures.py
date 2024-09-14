@@ -3,7 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Self, Optional, TypeVar, Generic
 
-from algo_trade.instrument import Instrument, Future
+from algo_trade.instrument import Instrument
 from algo_trade._constants import DAYS_IN_YEAR
 
 class _utils:
