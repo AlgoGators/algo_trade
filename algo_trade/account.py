@@ -6,6 +6,7 @@ import time
 import threading
 import logging
 import datetime
+from contextlib import contextmanager
 from ibapi.order import Order
 from ibapi.client import EClient
 from ibapi.order_state import OrderState
@@ -31,10 +32,8 @@ class Trade():
 class Account:
     def __init__(
             self,
-            positions : list[Position],
-            min_DTE : int = -1) -> None:
+            positions : list[Position]) -> None:
         self.positions = positions
-        self.min_DTE = min_DTE
 
     def __sub__(self, held : 'Account') -> list[Trade]:
         if not isinstance(held, Account):
@@ -204,13 +203,13 @@ class APIHandler:
         return expiration_date
  
 
-    def initialize_desired_contracts(self, account : Account) -> None:
+    def initialize_desired_contracts(self, account : Account, min_DTE) -> None:
         """
         Takes an account object and finds the nearest contracts with at least X days until expiry.
         Where X is account.min_DTE; operates inplace
         """
         for position in account.positions:
-            expiration_date : str = self.get_soonest_valid_expiry(position.contract, account.min_DTE)
+            expiration_date : str = self.get_soonest_valid_expiry(position.contract, min_DTE)
             position.contract.lastTradeDateOrContractMonth = expiration_date
             desired_contract : dict[str, Contract] = self.get_contract_details(position.contract)
 
@@ -309,17 +308,35 @@ class APIHandler:
         if WAIT_FOR_TRADES:
             self.__wait_for_trades()
 
+    def __del__(self) -> None:
+        """
+        Destructor ensures disconnect when picked up by garbage collector
+        """
+        self.disconnect()
+
+@contextmanager
+def api_handler_context(
+    IP_ADDRESS : ipaddress.IPv4Address,
+    PORT : int,
+    CLIENT_ID : int):
+    handler = APIHandler(IP_ADDRESS, PORT, CLIENT_ID)
+    handler.connect()
+    try:
+        yield handler
+    finally:
+        handler.disconnect()
+
 if __name__ == "__main__":
-    held_positions = [
-        Position(Contract('ESZ24'), Decimal(1)),
-        Position(Contract('NQZ24'), Decimal(-1))
-    ]
-    held_account = Account(held_positions, 5)
     new_positions = [
         Position(Contract('ESZ24'), Decimal(2)),
         Position(Contract('YMZ24'), Decimal(-2))
     ]
-    new_account = Account(new_positions, 5)
+    new_account = Account(new_positions)
+        
 
-    trades = new_account - held_account
-    print(trades)
+    with api_handler_context(ipaddress.ip_address('127.0.0.1'), 4002, 0) as api_handler:
+        api_handler.cancel_outstanding_orders()
+
+        held_positions = api_handler.current_positions
+
+        print(held_positions)
