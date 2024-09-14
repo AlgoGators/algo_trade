@@ -1,34 +1,4 @@
-from enum import Enum, StrEnum
-from algo_trade.instrument import Future
-
-class SecurityType(Enum):
-    FUTURE = (Future, 'FUT')
-
-    def __init__(self, obj, string):
-        self.obj = obj
-        self.string = string
-
-    @classmethod
-    def from_str(cls, value: str) -> "SecurityType":
-        """
-        Converts a string to a SecurityType enum based on the value to the Enum name and not value
-        so "FUTURE" -> FUTURE
-
-        Args:
-            - value: str - The value to convert to a SecurityType enum
-
-        Returns:
-            - SecurityType: The SecurityType enum
-        """
-        try:
-            return cls[value.upper()]
-        except ValueError:
-            # If exact match fails, look for a case-insensitive match
-            for member in cls:
-                if member.name.lower() == value.lower():
-                    return member
-
-            raise ValueError(f"{value} is not a valid {cls.__name__}")
+from enum import StrEnum
         
 class AccountSummaryTag(StrEnum):
     ACCOUNT_TYPE = "AccountType"
@@ -61,3 +31,36 @@ class AccountSummaryTag(StrEnum):
     DAY_TRADES_REMAINING = "DayTradesRemaining"
     LEVERAGE = "Leverage"
     LEDGER = "$LEDGER:ALL"
+
+class CurrencyName(StrEnum):
+    USD = 'USD'
+    EUR = 'EUR'
+    GBP = 'GBP'
+    AUD = 'AUD'
+
+class OrderAction(StrEnum):
+    BUY = 'BUY'
+    SELL = 'SELL'
+
+class OrderType(StrEnum):
+    MARKET = 'MKT'
+    LIMIT = 'LMT'
+    STOP = 'STP'
+    STOP_LIMIT = 'STP LMT'
+
+class AlgoStrategy(StrEnum):
+    ADAPTIVE = 'Adaptive'
+    TWAP = 'Twap'
+    VWAP = 'Vwap'
+
+class AdaptiveOrderPriority(StrEnum):
+    URGENT = 'Urgent'
+    PATIENT = 'Patient'
+    NORMAL = 'Normal'
+
+class ExchangeName(StrEnum):
+    NASDAQ = 'NASDAQ'
+    EUREX = 'EUREX'
+    GLOBEX = 'GLOBEX'
+    SMART = 'SMART'
+    CME = 'CME'
