@@ -27,7 +27,7 @@ class TradingSystem(ABC, Generic[T]):
         self.trading_system_rules : list[Callable] = []
 
     @property
-    def security_types(self) -> pd.DataFrame[SecurityType]: 
+    def security_types(self) -> pd.DataFrame: 
         #* existence of this method, is likely a risk in & of itself, 
         #* because TradingSystems should be homogenous instrument types
         if not hasattr(self, '_security_types'):
@@ -38,12 +38,12 @@ class TradingSystem(ABC, Generic[T]):
             for instrument in self.instruments:
                 security_types[instrument.name] = instrument.security_type
 
-            self._security_types : pd.DataFrame[SecurityType] = pd.DataFrame(security_types, index=[0], dtype=SecurityType)
+            self._security_types : pd.DataFrame = pd.DataFrame(security_types, index=[0], dtype=SecurityType)
 
         return self._security_types
 
     @property
-    def multipliers(self) -> pd.DataFrame[float]:
+    def multipliers(self) -> pd.DataFrame:
         if not hasattr(self, '_multipliers'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -57,7 +57,7 @@ class TradingSystem(ABC, Generic[T]):
         return self._multipliers
 
     @property
-    def exchanges(self) -> pd.DataFrame[str]:
+    def exchanges(self) -> pd.DataFrame:
         if not hasattr(self, '_exchanges'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
@@ -71,7 +71,7 @@ class TradingSystem(ABC, Generic[T]):
         return self._exchanges
     
     @property
-    def currencies(self) -> pd.DataFrame[str]:
+    def currencies(self) -> pd.DataFrame:
         if not hasattr(self, '_currencies'):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
