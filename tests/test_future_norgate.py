@@ -3,7 +3,7 @@ from algo_trade.instrument import Instrument, Future
 
 @pytest.fixture
 def future():
-    future: Future = Future("ES", "CME", multiplier=50)
+    future: Future = Future("ES", "CME", multiplier=50, currency="USD", exchange="CME")
     future.add_norgate_data("Norgate")
     return future
 
