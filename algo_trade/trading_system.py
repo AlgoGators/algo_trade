@@ -1,35 +1,36 @@
-import os
-from typing import Any, Dict, TypeVar, Generic
+from typing import TypeVar, Generic
 
 import pandas as pd
 from abc import ABC
-import numpy as np
 from typing import Callable
 from dotenv import load_dotenv
+from decimal import Decimal
 
 # Internal
 from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
+from algo_trade.account import Account
+from algo_trade.ib_utils.src._contract import Contract
 
 load_dotenv()
 
 T = TypeVar('T', bound=Instrument)
 
-class Portfolio(ABC, Generic[T]):
+class TradingSystem(ABC, Generic[T]):
     def __init__(self):
         self.instruments : list[T] = None
         self.weighted_strategies : list[tuple[float, Strategy]]
         self.capital : float
         self.risk_object : RiskMeasure
-        self.portfolio_rules : list[Callable] = []
+        self.trading_system_rules : list[Callable] = []
 
     @property
     def multipliers(self):
         if not hasattr(self, '_multipliers'):
             if self.instruments is None:
-                raise ValueError("No instruments in the portfolio")
+                raise ValueError("No instruments in the TradingSystem")
 
             multipliers = {}
             for instrument in self.instruments:
@@ -62,7 +63,7 @@ class Portfolio(ABC, Generic[T]):
 
             self._positions /= self.multipliers.iloc[0] # Divide by multipliers
 
-            for rule in self.portfolio_rules:
+            for rule in self.trading_system_rules:
                 self._positions = rule(self)
 
         return self._positions
@@ -77,3 +78,26 @@ class Portfolio(ABC, Generic[T]):
 
     @property
     def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
+
+    def __getitem__(self, key) -> Account:
+        positions : pd.DataFrame = self.positions.iloc[key]
+        key_pairs = {instrument.name: instrument.ib_symbol for instrument in self.instruments}
+
+        ibkr_positions : dict[Contract, Decimal]= {
+            Contract(symbol=key_pairs[column], multiplier=self.multipliers[column].iloc[0]): Decimal(int(positions[column].iloc[0]))
+            for column in positions.columns
+        }
+
+        return Account(ibkr_positions)
+
+    def __sub__(self, other) -> 'TradingSystem':
+        if not isinstance(other, TradingSystem):
+            raise ValueError("Can only subtract TradingSystem from TradingSystem")
+        self.positions = self.positions - other.positions
+        return self
+    
+    def __add__(self, other) -> 'TradingSystem':
+        if not isinstance(other, TradingSystem):
+            raise ValueError("Can only add TradingSystem to TradingSystem")
+        self.positions = self.positions + other.positions
+        return self
