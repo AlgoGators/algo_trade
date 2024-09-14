@@ -5,7 +5,7 @@ import numpy as np
 
 from algo_trade.dyn_opt import dyn_opt, single_day_optimization
 from algo_trade.contract import Contract
-from algo_trade.portfolio import Portfolio
+from algo_trade.trading_system import Portfolio
 from algo_trade.instrument import Future, Agg
 from algo_trade.risk_measures import GARCH, RiskMeasure, Covariance
 from algo_trade.strategy import Strategy
