@@ -238,8 +238,8 @@ class Future(Instrument):
 
     security_type = SecurityType.FUTURE
 
-    def __init__(self, symbol: str, dataset: str, multiplier: float = 1.0):
-        super().__init__(symbol, dataset)
+    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, multiplier: float = 1.0):
+        super().__init__(symbol, dataset, currency, exchange)
         self.multiplier: float = multiplier
         self.contracts: dict[str, Contract] = {}
         self._front: Contract

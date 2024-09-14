@@ -5,7 +5,7 @@ import numpy as np
 
 from algo_trade.dyn_opt import dyn_opt, single_day_optimization
 from algo_trade.contract import Contract
-from algo_trade.trading_system import Portfolio
+from algo_trade.trading_system import TradingSystem
 from algo_trade.instrument import Future, Agg
 from algo_trade.risk_measures import GARCH, RiskMeasure, Covariance
 from algo_trade.strategy import Strategy
@@ -78,7 +78,7 @@ class TestStrategy(Strategy[Future]):
             instrument.price = contract.close
 
 
-class TestPortfolio(Portfolio[Future]):
+class TestTradingSystem(TradingSystem[Future]):
     def __init__(self, instruments : list[Future], risk_target : float, capital : float):
         super().__init__()
         self.risk_object = GARCH(
@@ -95,11 +95,11 @@ class TestPortfolio(Portfolio[Future]):
 
 class TestDynOpt(unittest.TestCase):
     def test_no_adj_needed(self):
-        future = Future(symbol="ES", dataset="CME", multiplier=5)
+        future = Future(symbol="ES", dataset="CME", multiplier=5, currency="USD", exchange="CME")
 
         instruments = [future]
 
-        portfolio = TestPortfolio(instruments, risk_target=0.20, capital=500_000)
+        portfolio = TestTradingSystem(instruments, risk_target=0.20, capital=500_000)
         portfolio.positions = portfolio.positions.round()
 
         optimized_positions = dyn_opt(
@@ -184,7 +184,7 @@ class TestDynOpt(unittest.TestCase):
         instruments : list[Future] = []
 
         for column in ideal_positions.columns:
-            future = Future(symbol=column, dataset="CME", multiplier=multipliers[column].iloc[0])
+            future = Future(symbol=column, dataset="CME", multiplier=multipliers[column].iloc[0], exchange="CME", currency="USD")
             contract = Contract(future.name, future.dataset, Agg.DAILY)
             contract.volume = volume[column]
             contract.close = unadj_prices[column]
@@ -192,7 +192,7 @@ class TestDynOpt(unittest.TestCase):
             future.price = contract.close
             instruments.append(future)
 
-        portfolio : Portfolio = TestPortfolio(instruments=instruments, risk_target=tau, capital=capital)
+        portfolio : TradingSystem = TestTradingSystem(instruments=instruments, risk_target=tau, capital=capital)
 
         portfolio.positions = ideal_positions
         portfolio.positions.index = pd.to_datetime(portfolio.positions.index)
