@@ -27,8 +27,9 @@ class Instrument():
 
     """
 
-    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0):
+    def __init__(self, symbol: str, dataset: str, instrument_type: Optional['InstrumentType'] = None, multiplier : float = 1.0, ib_symbol = None):
         self._symbol = symbol
+        self._ib_symbol = ib_symbol if ib_symbol is not None else symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
         self.asset: ASSET
@@ -49,6 +50,19 @@ class Instrument():
         str: The symbol of the instrument
         """
         return self._symbol
+
+    @property
+    def ib_symbol(self) -> str:
+        """
+        Returns the IBKR symbol of the instrument
+        
+        Args:
+        None
+        
+        Returns:
+        str: The IBKR symbol of the instrument
+        """
+        return self._ib_symbol
 
     @property
     def dataset(self) -> str:
@@ -411,7 +425,7 @@ class InstrumentType(Enum):
     
 
 def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
-    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType'], row.loc['multiplier'])) for n, row in instrument_df.iterrows()]
+    return [Instrument(row.loc['dataSymbol'], row.loc['dataSet'], InstrumentType.from_str(row.loc['instrumentType']), row.loc['multiplier'], row.loc['ibSymbol']) for n, row in instrument_df.iterrows()]
 
 if __name__ == "__main__":
     # lst = initialize_instruments(pd.read_csv('data/contract.csv'))
