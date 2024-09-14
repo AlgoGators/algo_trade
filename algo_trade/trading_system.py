@@ -11,7 +11,7 @@ from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
-from algo_trade.account import Account
+from algo_trade.account import Account, Position
 from algo_trade.ib_utils.src._contract import Contract
 
 load_dotenv()
@@ -83,10 +83,10 @@ class TradingSystem(ABC, Generic[T]):
         positions : pd.DataFrame = self.positions.iloc[key]
         key_pairs = {instrument.name: instrument.ib_symbol for instrument in self.instruments}
 
-        ibkr_positions : dict[Contract, Decimal]= {
-            Contract(symbol=key_pairs[column], multiplier=self.multipliers[column].iloc[0]): Decimal(int(positions[column].iloc[0]))
+        ibkr_positions : list[Position] = [
+            Position(Contract(symbol=key_pairs[column], multiplier=self.multipliers[column].iloc[0]), Decimal(int(positions[column].iloc[0])))
             for column in positions.columns
-        }
+        ]
 
         return Account(ibkr_positions)
 
