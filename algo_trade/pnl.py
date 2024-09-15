@@ -1,13 +1,14 @@
-# Import necessary modules
 from enum import Enum, auto
-import pandas as pd
+import pandas as pd # type: ignore
 import numpy as np
 from algo_trade._constants import DAYS_IN_YEAR
 import matplotlib.pyplot as plt
+from typing import Optional
 
-
-# Define a PnL class to handle profit and loss calculations
 class PnL:
+    """
+    PnL class to handle profit and loss calculations
+    """
     # Nested ReturnType Enum to define point and percent return types
     class ReturnType(Enum):
         POINT = auto()
@@ -20,43 +21,53 @@ class PnL:
         CUMULATIVE = auto()
 
     # Constructor for the PnL class
-    def __init__(self, positions: pd.DataFrame, prices: pd.DataFrame, capital: float, multipliers: pd.DataFrame | None = None,
-                 transaction_cost_rate: float = 0.0):
-        self.__positions = positions  # Store positions dataframe
-        self.__prices = prices  # Store prices dataframe
-        self.__multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=positions.columns,
-                                                                                      data=np.ones(
-                                                                                          (1, len(positions.columns))))
-        self.__capital = capital  # Store initial capital
-        self.__transaction_cost_rate = transaction_cost_rate  # Store transaction cost rate
-        self.__point_returns = self.__get_point_returns()  # Calculate point returns
-        self.__turnover = self.__get_turnover()  # Calculate turnover
-        self.__transaction_costs = self.__get_transaction_costs()  # Calculate transaction costs
-        self.__benchmark = self.__get_benchmark() # Stores benchmark
+    def __init__(
+            self,
+            positions: pd.DataFrame,
+            prices: pd.DataFrame,
+            capital: float,
+            multipliers: pd.DataFrame | None = None,
+            transaction_cost_rate: float = 0.0
+        ) -> None:
+        self.__positions = positions
+        self.__prices = prices
+        self.__multipliers = multipliers if multipliers is not None else pd.DataFrame(columns=positions.columns, data=np.ones((1, len(positions.columns))))
+        self.__capital = capital
+        self.__transaction_cost_rate = transaction_cost_rate
+        self.__point_returns = self.__get_point_returns()
+        self.__turnover = self.__get_turnover()
+        self.__transaction_costs = self.__get_transaction_costs()
+        self.__benchmark = self.__get_benchmark()
 
     def __get_benchmark(self) -> pd.Series:
-        # Calculate daily percent returns for each instrument
+        # Daily percent returns for each instrument
         percent_returns = self.__prices.pct_change().fillna(0)
 
-        # Calculate the average daily return (buy and hold assumption: equally weighted)
+        # Average daily return (buy and hold assumption: equally weighted)
         benchmark_returns = percent_returns.mean(axis=1)
 
         return benchmark_returns
 
-    # Method to get the turnover (absolute changes in positions)
     def __get_turnover(self) -> pd.DataFrame:
+        """
+        Get the turnover (absolute changes in positions)
+        """
         # Calculate turnover as absolute change in positions across instruments
         turnover = self.__positions.diff().abs().fillna(0)
         return turnover
 
-    # Method to get transaction costs based on turnover and transaction cost rate
     def __get_transaction_costs(self) -> pd.DataFrame:
+        """
+        Gets transaction costs based on turnover and transaction cost rate
+        """
         # Transaction costs based on turnover and transaction cost rate
         transaction_costs = self.__turnover * self.__transaction_cost_rate
         return transaction_costs
 
-    # Method to return turnover with aggregation option
     def get_turnover(self, aggregate: bool = True) -> pd.Series | pd.DataFrame:
+        """
+        Returns turnover with aggregation option
+        """
         if aggregate:
             # Sum turnover across all instruments
             return self.__turnover.sum(axis=1)
@@ -64,8 +75,10 @@ class PnL:
             # Return turnover per instrument
             return self.__turnover
 
-    # Method to return transaction costs with aggregation option
-    def get_transaction_costs(self, aggregate: bool = True, transaction_cost_rate: float = None) -> pd.Series | pd.DataFrame:
+    def get_transaction_costs(self, aggregate: bool = True, transaction_cost_rate: Optional[float] = None) -> pd.Series | pd.DataFrame:
+        """
+        Returns transaction costs with aggregation option
+        """
         if transaction_cost_rate != None:
             # Transaction costs based on turnover and transaction cost rate
             transaction_costs = self.__turnover * transaction_cost_rate
@@ -78,39 +91,45 @@ class PnL:
                 # Return transaction costs per instrument
                 return self.__transaction_costs
 
-    # Method to get returns based on return type, timespan, and aggregation
     def get(self, return_type: ReturnType, timespan: Timespan, aggregate: bool = True) -> pd.DataFrame:
+        """
+        Gets returns based on return type, timespan, and aggregation
+        """
         # Match-case to determine behavior based on return_type and timespan
         match return_type, timespan:
-            # Daily point return
+            #@ Daily point return
             case self.ReturnType.POINT, self.Timespan.DAILY:
                 return self.__point_returns.sum(axis=1) if aggregate else self.__point_returns
-            # Cumulative point return
+            #@ Cumulative point return
             case self.ReturnType.POINT, self.Timespan.CUMULATIVE:
                 return self.__point_returns.cumsum().sum(axis=1) if aggregate else self.__point_returns.cumsum()
 
-            # Daily percent return
+            #@ Daily percent return
             case self.ReturnType.PERCENT, self.Timespan.DAILY:
                 return self.__point_returns / self.__prices.shift(
                     1) if not aggregate else self.__portfolio_percent_returns(self.__capital)
-            # Cumulative percent return
+            #@ Cumulative percent return
             case self.ReturnType.PERCENT, self.Timespan.CUMULATIVE:
                 return (self.__point_returns / self.__prices.shift(
                     1) + 1).cumprod() - 1 if not aggregate else self.__point_returns.sum(
                     axis=1).cumsum() / self.__capital
 
-            # Handle unsupported combinations
+            #@ Handle unsupported combinations
             case _:
                 raise NotImplementedError(
                     f"The Enums provided or the combination of them: {return_type, timespan}, has not been implemented.")
 
-    # Method to get the Sharpe ratio
     def get_sharpe_ratio(self, aggregate: bool = True) -> pd.Series:
+        """
+        Gets the Sharpe ratio
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return returns.mean() / returns.std() * DAYS_IN_YEAR ** 0.5
 
-    # Method to get volatility based on timespan and aggregation
     def get_volatility(self, timespan: Timespan, aggregate: bool = True) -> pd.Series:
+        """
+        Gets volatility based on timespan and aggregation
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         if timespan == self.Timespan.DAILY:
             return returns.std()
@@ -119,8 +138,10 @@ class PnL:
         else:
             raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
 
-    # Method to get mean return based on timespan and aggregation
     def get_mean_return(self, timespan: Timespan, aggregate: bool = True) -> pd.Series:
+        """
+        Gets mean return based on timespan and aggregation
+        """
         if timespan == self.Timespan.DAILY:
             returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
             return returns.mean()
@@ -130,8 +151,6 @@ class PnL:
             cagr = (1 + total_return) ** (1 / (returns.count() / DAYS_IN_YEAR)) - 1
             return cagr
         raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
-
-    # Placeholder for drawdown calculation
 
     def drawdown(self, aggregate: bool = True) -> pd.Series: #Currently in points,
         portfolio_returns = self.get(self.ReturnType.POINT, self.Timespan.DAILY, aggregate)
@@ -148,8 +167,7 @@ class PnL:
 
         return drawdown
 
-    # Placeholder for plot method
-    def plot(self, metrics: list = None, aggregate: bool = True) -> None:
+    def plot(self, metrics: Optional[list[str]] = None, aggregate: bool = True) -> None:
         if metrics is None:
             metrics = ['returns', 'cumulative', 'drawdown']
 
@@ -186,51 +204,69 @@ class PnL:
         plt.grid(True)
         plt.show()
 
-    # Method to calculate tracking error with another series
     def tracking_error(self, other: pd.Series) -> auto():
+        """
+        Calculate tracking error with another series
+        """
         tracking_error = np.std(other - self.__benchmark)
         return tracking_error * DAYS_IN_YEAR ** 0.5
 
-    # Method to calculate Skewness
     def get_skewness(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate skewness
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return ((returns - returns.mean()) ** 3).mean() / (returns.std() ** 3)
 
-    # Method to calculate Kurtosis
     def get_kurtosis(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate kurtosis
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return ((returns - returns.mean()) ** 4).mean() / (returns.std() ** 4)
 
-    # Method to calculate Maximum Drawdown
     def get_max_drawdown(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate max drawdown
+        """
         drawdown = self.drawdown(aggregate)
         return drawdown.max()
 
-    # Method to calculate Calmar Ratio:
     def get_calmar_ratio(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate Calmar ratio
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate) * DAYS_IN_YEAR ** 0.5
         max_drawdown = self.get_max_drawdown(aggregate)
         return returns.mean() / max_drawdown
 
-    # Method to calculate Information Ratio;
     def get_information_ratio(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate information ratio
+        """
         portfolio_returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         tracking_error = self.tracking_error(portfolio_returns)
         excess_return = (portfolio_returns.mean() - self.__benchmark.mean()) * np.sqrt(DAYS_IN_YEAR)
         return excess_return / tracking_error
 
-    # Method to calculate Tail Ratio (95th percentile return / 5th percentile return)
     def get_tail_ratio(self, aggregate: bool = True) -> pd.Series:
+        """
+        Calculate Tail Ratio (95th percentile return / 5th percentile return)
+        """
         returns = self.get(self.ReturnType.PERCENT, self.Timespan.DAILY, aggregate)
         return np.percentile(returns, 95) / np.abs(np.percentile(returns, 5))
 
-    # Helper method to calculate portfolio percent returns based on capital
     def __portfolio_percent_returns(self, capital: float) -> pd.Series:
+        """
+        Helper method to calculate portfolio percent returns based on capital
+        """
         capital_series = pd.Series(data=capital, index=self.__point_returns.index) + self.__point_returns.sum(axis=1)
         return capital_series / capital_series.shift(1) - 1
 
-    # Helper method to calculate point returns
     def __get_point_returns(self) -> pd.DataFrame:
+        """
+        Helper method to calculate point returns
+        """
         pnl = pd.DataFrame()
         for instrument in self.__positions.columns:
             pos_series = self.__positions[instrument]
