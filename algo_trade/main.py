@@ -77,9 +77,9 @@ class Trend(TradingSystem):
                     tau=risk_target),
                 portfolio_multiplier_fn=portfolio_multiplier(
                     max_portfolio_leverage=20,
-                    max_correlation_risk=0.65,
-                    max_portfolio_volatility=0.30,
-                    max_portfolio_jump_risk=0.75)
+                    max_correlation_risk=0.70,
+                    max_portfolio_volatility=0.40,
+                    max_portfolio_jump_risk=0.80)
             )
         ]
 
@@ -104,11 +104,6 @@ def main() -> None:
     # Load the instruments
     instruments_dataframe : pd.DataFrame = pd.read_csv(contract_path)
 
-    # Set the dataset for the instruments
-    instruments_dataframe['dataSet'] = instruments_dataframe.apply(
-        lambda row: 'GLBX.MDP3' if row['exchange'] in ["CME", "COMEX", "NYMEX", "CBOT"] else pd.NA,
-        axis=1
-    )
     instruments_dataframe.dropna(subset=['dataSet'], inplace=True)
 
     # Initialize the instruments
