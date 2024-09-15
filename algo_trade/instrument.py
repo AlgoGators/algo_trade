@@ -75,7 +75,7 @@ class Instrument():
     def __init__(
             self,
             symbol: str,
-            dataset: str,
+            dataset: DATASET,
             currency : str,
             exchange : str,
             security_type: Optional['SecurityType'] = None,
@@ -444,7 +444,7 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=schema,
         )
 
@@ -509,7 +509,7 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=schema,
         )
 
