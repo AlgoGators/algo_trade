@@ -146,7 +146,7 @@ class Instrument():
         return self._exchange
 
     @property
-    def dataset(self) -> str:
+    def dataset(self) -> DATASET:
         """
         Returns the dataset of the instrument
 
@@ -289,7 +289,7 @@ class Future(Instrument):
     """
 
     security_type = SecurityType.FUTURE
-    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, multiplier: float = 1.0):
+    def __init__(self, symbol: str, dataset: DATASET, currency : str, exchange : str, multiplier: float = 1.0):
         super().__init__(
             symbol,
             dataset,
@@ -474,7 +474,7 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=Agg.DAILY,
             catalog=CATALOG.NORGATE,
         )
