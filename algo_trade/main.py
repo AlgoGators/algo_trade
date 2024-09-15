@@ -104,6 +104,13 @@ def main() -> None:
     # Load the instruments
     instruments_dataframe : pd.DataFrame = pd.read_csv(contract_path)
 
+    # Set the dataset for the instruments
+    instruments_dataframe['dataSet'] = instruments_dataframe.apply(
+        lambda row: 'GLBX.MDP3' if row['exchange'] in ["CME", "COMEX", "NYMEX", "CBOT"] else pd.NA,
+        axis=1
+    )
+    instruments_dataframe.dropna(subset=['dataSet'], inplace=True)
+
     # Initialize the instruments
     futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
 
