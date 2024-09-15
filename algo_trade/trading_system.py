@@ -38,7 +38,7 @@ class TradingSystem(ABC, Generic[T]):
             for instrument in self.instruments:
                 security_types[instrument.name] = instrument.security_type
 
-            self._security_types : pd.DataFrame = pd.DataFrame(security_types, index=[0], dtype=SecurityType)
+            self._security_types : pd.DataFrame = pd.DataFrame(security_types, index=[0])
 
         return self._security_types
 
@@ -124,7 +124,7 @@ class TradingSystem(ABC, Generic[T]):
     def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
 
     def __getitem__(self, key) -> Account:
-        positions : pd.DataFrame = self.positions.iloc[key]
+        positions : pd.DataFrame = self.positions.iloc[[key]]
         key_pairs = {instrument.name: instrument.ib_symbol for instrument in self.instruments}
 
         ibkr_positions : list[Position] = [
