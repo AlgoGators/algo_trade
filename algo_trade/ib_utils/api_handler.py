@@ -26,16 +26,6 @@ logger = logging.getLogger(__name__)
 
 TickerId = int
 
-# @dataclass
-# class ConnectionStatus():
-#     MARKET_DATA_FARM : bool = False
-#     HMDS_DATA_FARM : bool = False # Historical Market Data
-#     SEC_DEF_DATA_FARM : bool = False
-
-#     @property
-#     def is_connected(self):
-#         return self.MARKET_DATA_FARM & self.HMDS_DATA_FARM & self.SEC_DEF_DATA_FARM
-    
 class ConnectionStatus():
     def __init__(self, condition : threading.Condition) -> None:
         self.condition = condition
@@ -84,7 +74,7 @@ class ConnectionStatus():
 class IBAPI(EClient, EWrapper):
     def __init__(self, condition : threading.Condition) -> None:
         EClient.__init__(self, self)
-        self.positions : list[Position] = [] #dict[str, list[Contract, Decimal]] = {}
+        self.positions : list[Position] = []
         self.contract_details : dict[str, ContractDetails] = {}
         self.contracts_margin : dict[str, Decimal] = {}
         self.account_summary : dict[str, list[tuple[str|float|Decimal|int, str]]] = {}
@@ -187,8 +177,6 @@ class APIHandler:
         self.__await_connection()
         with self.app.connection_status.condition:
             self.app.connection_status.condition.wait(TIMEOUT)
-        # while not self.app.connection_status.is_connected:
-        #     time.sleep(1)
 
     def disconnect(self) -> None: self.app.disconnect()
 
@@ -205,8 +193,6 @@ class APIHandler:
         """
         Gets the next expiration date for a contract that is at least min_DTE days away
         """
-
-        # if self.app.connection_status.SEC_DEF_DATA_FARM:
 
         possible_contracts : dict[str, Contract] = self.get_contract_details(contract)
         expirations : list[str] = [x.lastTradeDateOrContractMonth for x in possible_contracts.values()]
