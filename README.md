@@ -37,13 +37,23 @@ WARNING: The script pipx.exe is installed in `<USER folder>\AppData\Roaming\Pyth
 >> pipx install poetry
 ```
 
+or 
+
+```
+>> python -m pip install --user pipx
+>> python -m pipx ensurepath
+```
+
 #### Linux
 ```
-// Ask Cole
+>> python3 -m pip install --user pipx
+>> python3 -m pipx ensurepath
 ```
 
 #### macOS
 ```
+>> python3 -m pip install --user pipx
+>> python3 -m pipx ensurepath
 ```
 
 ---
