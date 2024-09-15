@@ -28,13 +28,13 @@ class ASSET(StrEnum):
 
 # TODO: Add more datasets
 class DATASET(StrEnum):
-    CME = "GLBX.MDP3"
+    GLOBEX = "GLBX.MDP3"
 
     @classmethod
     def from_str(cls, value: str) -> "DATASET":
         """
         Converts a string to a DATASET enum based on the value to the Enum name and not value
-        so "CME" -> DATASET.CME
+        so "GLOBEX" -> DATASET.GLOBEX
 
         Args:
             - value: str - The value to convert to a DATASET enum
