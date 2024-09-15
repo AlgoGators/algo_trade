@@ -553,7 +553,7 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
     return [
         Instrument(
             symbol=row.loc['dataSymbol'],
-            dataset=row.loc['dataSet'],
+            dataset=DATASET.from_str(row.loc['dataSet']),
             currency=row.loc['currency'],
             exchange=row.loc['exchange'],
             security_type=SecurityType.from_str(row.loc['instrumentType']),
