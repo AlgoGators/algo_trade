@@ -183,7 +183,7 @@ class Contract:
 
         range: dict[str, str] = await self._get_dataset_range_async(client)
         # Shift the data and definitions end back by one day to account for historical vs intraday data availability
-        start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
+        start: pd.Timestamp = pd.Timestamp(range["start"])
         end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
 
         if data_path.exists() and definitions_path.exists():

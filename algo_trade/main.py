@@ -109,7 +109,7 @@ def main() -> None:
     # Initialize the instruments
     futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
 
-    asyncio.run(fetch_futures_data(futures))
+    asyncio.run(fetch_futures_data(futures, rate=5))
 
     # Create a portfolio
     trend : TradingSystem = Trend(
