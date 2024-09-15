@@ -13,6 +13,7 @@ from ibapi.order_state import OrderState
 from ibapi.wrapper import EWrapper
 from ibapi.order import Order
 
+import algo_trade.ib_utils._error_handler
 from algo_trade.ib_utils._enums import AccountSummaryTag
 from algo_trade.ib_utils._contract import Contract
 from algo_trade.ib_utils._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
@@ -131,16 +132,27 @@ class IBAPI(EClient, EWrapper):
 
     def error(self, reqId : TickerId, errorCode : int, errorString : str, advancedOrderRejectJson : str = ""):
         match errorCode:
-            case ErrorCodes.HMDS_DATA_FARM:
+            case ErrorCodes.HMDS_DATA_FARM_CONNECTED:
                 self.connection_status.HMDS_DATA_FARM = True
-            case ErrorCodes.MARKET_DATA_FARM:
+            case ErrorCodes.MARKET_DATA_FARM_CONNECTED:
                 self.connection_status.MARKET_DATA_FARM = True
-            case ErrorCodes.SEC_DEF_DATA_FARM:
+            case ErrorCodes.SEC_DEF_DATA_FARM_CONNECTED:
                 self.connection_status.SEC_DEF_DATA_FARM = True
-            case ErrorCodes.HMDS_DATA_FARM_INACTIVE:
+            case ErrorCodes.HMDS_DATA_FARM_CONNECTED_INACTIVE:
                 self.connection_status.HMDS_DATA_FARM = True
+            case ErrorCodes.MARKET_DATA_FARM_CONNECTED_INACTIVE:
+                self.connection_status.MARKET_DATA_FARM = True
             case ErrorCodes.CANT_CONNECT_TO_TWS:
-                raise NotImplementedError("Failed to connect to TWS")
+                raise ConnectionError("Can't connect to TWS")
+            case ErrorCodes.OUTDATED_TWS:
+                raise ConnectionRefusedError("Outdated TWS")
+            case ErrorCodes.NOT_CONNECTED:
+                raise ConnectionError("Not connected to TWS")
+            case ErrorCodes.CONNECTIVITY_LOST:
+                logging.warning("Connectivity lost. Attempting to reconnect...")
+                self.disconnect()
+                time.sleep(5)  # Wait for 5 seconds before attempting to reconnect
+                self.connect()
             case _:
                 raise NotImplementedError(f"Error Code: {errorCode} | Error Message: {errorString}")
 
