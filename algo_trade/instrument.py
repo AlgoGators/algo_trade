@@ -563,6 +563,14 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
         for n, row in instrument_df.iterrows()
     ]
 
+async def fetch_futures_data(futures : list[Future]) -> None:
+    tasks = []
+    for future in futures:
+        task = asyncio.create_task(future.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT))
+        tasks.append(task)
+
+    await asyncio.gather(*tasks)
+
 async def main():
     ex: str = "CME"
     bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
