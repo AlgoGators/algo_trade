@@ -1,5 +1,5 @@
 from enum import Enum, auto
-import pandas as pd
+import pandas as pd # type: ignore
 import numpy as np
 from algo_trade._constants import DAYS_IN_YEAR
 
@@ -63,22 +63,22 @@ class PnL:
         raise NotImplementedError(f"The Enum provided: {timespan}, has not been implemented.")
 
     @property
-    def information_ratio(self) -> ... :
+    def information_ratio(self) -> None:
         raise NotImplementedError()
     
     @property
-    def drawdown(self) -> ... :
+    def drawdown(self) -> None:
         raise NotImplementedError()
     
     def plot(self) -> None:
         raise NotImplementedError()
     
     
-    def tracking_error(self, other : pd.Series) -> ... :
+    def tracking_error(self, other : pd.Series) -> None:
         """Returns the tracking error between the PnL of the portfolio and another series (or maybe another PnL object?)"""
         raise NotImplementedError()
     
-    def regression(self, other : pd.Series) -> ... :
+    def regression(self, other : pd.Series) -> None:
         """Returns the regression between the PnL of the portfolio and another series (or maybe another PnL object?)"""
         raise NotImplementedError()
 

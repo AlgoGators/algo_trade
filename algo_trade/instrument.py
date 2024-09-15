@@ -2,11 +2,11 @@ import os
 from typing import Tuple, Optional
 import asyncio
 import databento as db
-import pandas as pd
+import pandas as pd # type: ignore
 from enum import Enum
 from dotenv import load_dotenv
+from typing import Type, Union
 from algo_trade.contract import (
-    ASSET,
     DATASET,
     CATALOG,
     Agg,
@@ -18,19 +18,34 @@ from algo_trade.contract import (
 load_dotenv()
 
 class SecurityType(Enum):
-    FUTURE = ('Future', 'FUT')
+    FUTURE = ('Future', "FUT")
+    EQUITY = (str, "EQT")
+    BOND = (int, "BND")
 
-    def __init__(self, obj_name, string):
-        self._obj_name = obj_name
+    def __init__(self, obj_name: Union[Type['Instrument'], str], string: str):
+        self._obj_name = obj_name  # Can be a string or an Instrument class type
         self.string = string
 
     @property
-    def obj(self):
-        # Dynamically resolve the object class when accessed
-        if isinstance(self._obj_name, str):
-            return globals()[self._obj_name]
-        return self._obj_name
+    def obj(self) -> Type['Instrument']:
+        """
+        Dynamically resolves the object class and returns a subclass of Instrument.
 
+        Returns:
+            - Type[Instrument]: The class type of the corresponding instrument.
+        """
+        if isinstance(self._obj_name, str):
+            resolved_class : Optional[Type[Instrument]] = globals().get(self._obj_name)
+            if resolved_class and issubclass(resolved_class, Instrument):
+                return resolved_class
+            raise TypeError(f"{self._obj_name} is not a subclass of Instrument.")
+        
+        # If it's already a class, return it directly if it's a subclass of Instrument
+        if issubclass(self._obj_name, Instrument):
+            return self._obj_name
+        
+        raise TypeError(f"Invalid object type: {self._obj_name}")
+    
     @classmethod
     def from_str(cls, value: str) -> "SecurityType":
         """
@@ -82,13 +97,13 @@ class Instrument():
             multiplier : float = 1.0,
             ib_symbol : str | None = None
         ) -> None:
-        self._symbol = symbol
-        self._ib_symbol = ib_symbol if ib_symbol is not None else symbol
-        self._dataset = dataset
-        self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
-        self.multiplier = multiplier
-        self._currency = currency
-        self._exchange = exchange
+        self._symbol : str = symbol
+        self._ib_symbol : str = ib_symbol if ib_symbol is not None else symbol
+        self._dataset : str = dataset
+        self.client : db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
+        self.multiplier : float = multiplier
+        self._currency : str = currency
+        self._exchange : str = exchange
 
         if security_type is not None:
             self.__class__ = security_type.obj
@@ -220,6 +235,19 @@ class Instrument():
         pd.Series: The prices of the instrument
         """
         raise NotImplementedError()
+    
+    @price.setter
+    def price(self, value: pd.Series) -> None:
+        """
+        Sets the prices of the instrument
+
+        Args:
+        value: pd.Series - The prices of the instrument
+
+        Returns:
+        None
+        """
+        raise NotImplementedError()
 
     @property
     def percent_returns(self) -> pd.Series:
@@ -244,7 +272,7 @@ class Instrument():
 
         contract = Contract(
             instrument=self.symbol,
-            dataset=self.dataset,
+            dataset=DATASET.from_str(self.dataset),
             schema=agg,
         )
 
@@ -260,7 +288,7 @@ class Instrument():
         agg: Agg,
         roll_type: RollType,
         contract_type: ContractType,
-    ):
+    ) -> None:
         # Process and store the fetched data
         if roll_type == RollType.CALENDAR and contract_type == ContractType.FRONT:
             self.front = contract
@@ -423,7 +451,7 @@ class Future(Instrument):
     def get_back(self) -> Contract:
         return self.back
 
-    def add_data(
+    async def add_data(
         self,
         schema: Agg,
         roll_type: RollType,
@@ -562,33 +590,3 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
         )
         for n, row in instrument_df.iterrows()
     ]
-
-async def main():
-    ex: str = "CME"
-    bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
-    multipliers: dict[str, float] = {
-        "ES": 50,
-        "NQ": 20,
-        "RTY": 50,
-        "YM": 5,
-        "ZN": 1000,
-    }
-    futures: list[Future] = []
-
-    tasks = []
-
-    for sym in bucket:
-        fut: Future = Future(symbol=sym, dataset=ex, multiplier=multipliers[sym])
-        task = asyncio.create_task(fut.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT))
-        tasks.append(task)
-        futures.append(fut)
-
-    await asyncio.gather(*tasks)
-
-    print("Futures:")
-    
-    for fut in futures:
-        print(fut.price)
-
-if __name__ == "__main__":
-    asyncio.run(main())

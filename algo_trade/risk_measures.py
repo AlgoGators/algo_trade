@@ -1,7 +1,9 @@
-import pandas as pd
+import pandas as pd # type: ignore
 import numpy as np
+import numpy.typing as npt
 from abc import ABC, abstractmethod
-from typing import Self, Optional, TypeVar, Generic
+from typing import Self, Optional, TypeVar, Generic, Iterator
+import datetime
 
 from algo_trade.instrument import Instrument
 from algo_trade._constants import DAYS_IN_YEAR
@@ -30,19 +32,19 @@ class _utils:
 
         return df
 
-class StandardDeviation(pd.DataFrame):
+class StandardDeviation(pd.DataFrame): # type: ignore
     def __init__(self, data : pd.DataFrame = None) -> None:
         super().__init__(data)
         self.__is_annualized : bool = False
 
-    def annualize(self, inplace=False) -> Optional[Self]:
+    def annualize(self, inplace : bool = False) -> Optional[Self]:
         if self.__is_annualized:
             return self
 
         factor : float = DAYS_IN_YEAR ** 0.5
 
         if inplace:
-            self *= factor
+            self *= factor # type: ignore
             self.__is_annualized = True
             return None
 
@@ -61,19 +63,19 @@ class Variance(pd.DataFrame):
         super().__init__(data)
         self.__is_annualized = False
 
-    def annualize(self, inplace=False) -> Optional[Self]:
+    def annualize(self, inplace : bool = False) -> Optional[Self]:
         if self.__is_annualized:
             return self
 
         factor : float = DAYS_IN_YEAR
 
         if inplace:
-            self *= factor
+            self *= factor # type: ignore
             self.__is_annualized = True
             return None
 
         new = Variance(self)
-        new = new.annualize(inplace=True)
+        new.annualize(inplace=True)
         return new
     
     def to_standard_deviation(self) -> 'StandardDeviation':
@@ -83,15 +85,17 @@ class Variance(pd.DataFrame):
         return pd.DataFrame(self)
 
 class Covariance:
-    def __init__(self, covariance_matrices : np.ndarray = None, dates : pd.DatetimeIndex = None, instrument_names : list[str] = None) -> None:
+    def __init__(self, covariance_matrices : Optional[npt.NDArray[np.float64]] = None, dates : pd.DatetimeIndex = None, instrument_names : Optional[list[str]] = None) -> None:
         self._covariance_matrices = covariance_matrices
         self._dates = dates
         self._instrument_names = instrument_names if instrument_names is not None else []
-        self._columns = []
+        self._columns : list[str] = []
 
     def to_frame(self) -> pd.DataFrame:
         self._columns = [f'{instrument_I}_{instrument_J}' for i, instrument_I in enumerate(self._instrument_names) for j, instrument_J in enumerate(self._instrument_names) if i <= j]
         rows = []
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
         for n in range(self._covariance_matrices.shape[0]):
             row = []
             for i, instrument_I in enumerate(self._instrument_names):
@@ -110,8 +114,11 @@ class Covariance:
     def index(self) -> pd.DatetimeIndex:
         return self._dates
     
-    def reindex(self, dates : pd.DatetimeIndex):
+    def reindex(self, dates : pd.DatetimeIndex) -> None:
         intersection = self._dates.intersection(dates)
+
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
 
         self._covariance_matrices = self._covariance_matrices[self._dates.isin(intersection)]
         self._dates = intersection
@@ -134,12 +141,17 @@ class Covariance:
         
         if not inplace:
             return self
+        return None
 
-    def iterate(self):
+    def iterate(self) -> Iterator[tuple[datetime.datetime, npt.NDArray[np.float64]]]:
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
         for n in range(self._covariance_matrices.shape[0]):
             yield self._dates[n], self._covariance_matrices[n]
 
-    def dropna(self):
+    def dropna(self) -> None:
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
         valid_indices = ~np.isnan(self._covariance_matrices).any(axis=(1, 2))
         self._covariance_matrices = self._covariance_matrices[valid_indices]
         self._dates = self._dates[valid_indices]
@@ -149,27 +161,32 @@ class Covariance:
         return self._covariance_matrices is None
     
     @property
-    def iloc(self):
+    def iloc(self) -> '_ILocIndexer':
         return self._ILocIndexer(self)
 
     @property
-    def loc(self):
+    def loc(self) -> '_LocIndexer':
         return self._LocIndexer(self)
 
     def __str__(self) -> str:
-        return self.to_frame().__str__()
+        return str(self.to_frame())
     
     def __repr__(self) -> str:
-        return self.to_frame().__repr__()
+        return repr(self.to_frame())
     
-    def __getitem__(self, key):
-        return self._covariance_matrices[key]
+    def __getitem__(self, key : int) -> npt.NDArray[np.float64]:
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
+        covariance_matrix = self._covariance_matrices[key]
+        return covariance_matrix # type: ignore
 
     class _ILocIndexer:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : int) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[key]
             return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
 
@@ -177,7 +194,9 @@ class Covariance:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : str | datetime.datetime) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
             return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
         
@@ -185,8 +204,8 @@ class Covariance:
 T = TypeVar('T', bound=Instrument)
 
 class RiskMeasure(ABC, Generic[T]):
-    def __init__(self, tau : float = None) -> None:
-        self.instruments : list[Instrument]
+    def __init__(self, tau : Optional[float] = None) -> None:
+        self.instruments : list[T]
 
         self.__returns = pd.DataFrame()
         self.__product_returns : pd.DataFrame = pd.DataFrame()
@@ -261,9 +280,9 @@ class RiskMeasure(ABC, Generic[T]):
 
         covar_df = self.get_cov().to_frame()
 
-        dates = covar_df.index
+        dates : pd.Index = covar_df.index
 
-        jump_covariances = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
+        jump_covariances : pd.DataFrame = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
 
         for i in range(len(dates)):
             if i < window:
@@ -274,7 +293,7 @@ class RiskMeasure(ABC, Generic[T]):
 
         jump_covariances = jump_covariances.interpolate().bfill() if self.fill else jump_covariances
 
-        self.__jump_covariances = Covariance().from_frame(jump_covariances)
+        self.__jump_covariances = Covariance().from_frame(jump_covariances) # type: ignore
 
         return self.__jump_covariances
 
@@ -282,7 +301,7 @@ class CRV(RiskMeasure[T]):
     def __init__(self, risk_target : float, instruments : list[T], window : int, span : int, fill : bool = True) -> None:
         super().__init__(tau=risk_target)
 
-        self.instruments = instruments
+        self.instruments : list[T] = instruments
         self.fill = fill
         self.window = window
         self.span = span

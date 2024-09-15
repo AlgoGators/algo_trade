@@ -12,7 +12,7 @@ class TrendFollowing(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_object: RiskMeasure, capital: float):
         super().__init__(capital=capital)
         self.instruments: list[Future] = instruments
-        self.risk_object = risk_object
+        self.risk_object : RiskMeasure = risk_object
         self.rules = [
             partial(risk_parity, risk_object=self.risk_object),
             partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
@@ -20,7 +20,7 @@ class TrendFollowing(Strategy[Future]):
             partial(capital_scaling, instruments=instruments, capital=capital),
             partial(IDM, risk_object=self.risk_object)
         ]
-        self.scalars = []
+        self.scalars : list[float] = []
         self.fetch_data()  # Fetch the data for the instruments
 
     def fetch_data(self) -> None:

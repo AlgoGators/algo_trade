@@ -1,11 +1,15 @@
-import pandas as pd
+import pandas as pd # type: ignore
 import numpy as np
 
-from algo_trade.instrument import Future
+from typing import TypeVar
+
+from algo_trade.instrument import Future, Instrument
 from algo_trade.risk_measures import RiskMeasure
 from algo_trade._constants import DAYS_IN_YEAR
 
 ### Strategy Rules
+
+T = TypeVar('T', bound=Instrument)
 
 def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
     df = pd.DataFrame()
@@ -31,7 +35,10 @@ def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
 
     return capital_weighting
 
-def risk_parity(risk_object: RiskMeasure) -> pd.DataFrame:
+def risk_parity(risk_object: RiskMeasure[T]) -> pd.DataFrame:
+    if risk_object.tau is None:
+        raise ValueError("Risk Measure object must have a tau value")
+
     return risk_object.tau / risk_object.get_var().to_standard_deviation().annualize()
 
 def equal_weight(instruments: list[Future]) -> pd.DataFrame:
@@ -130,7 +137,7 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
 
     return df
 
-def IDM(risk_object : RiskMeasure) -> pd.DataFrame:
+def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
 
     returns = risk_object.get_returns()

@@ -1,9 +1,8 @@
 from enum import StrEnum
-import pandas as pd
+import pandas as pd # type: ignore
 import databento as db
 from pathlib import Path
 from dotenv import load_dotenv
-import os
 import asyncio
 
 load_dotenv()
@@ -60,10 +59,10 @@ class Agg(StrEnum):
     MINUTE = "ohlcv-1m"
     SECOND = "ohlcv-1s"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value
 
 
@@ -72,10 +71,10 @@ class RollType(StrEnum):
     OPEN_INTEREST = "n"
     VOLUME = "v"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value
 
 
@@ -86,10 +85,10 @@ class ContractType(StrEnum):
     FOURTH = "3"
     FIFTH = "4"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.value
 
 
@@ -212,7 +211,7 @@ class Contract:
     async def _get_dataset_range_async(self, client: db.Historical) -> dict[str, str]:
         return await asyncio.to_thread(client.metadata.get_dataset_range, dataset=self.dataset)
 
-    async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp):
+    async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp) -> None:
         try:
             symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
             new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end)
@@ -224,7 +223,7 @@ class Contract:
         except Exception as e:
             print(f"Error: {e}")
 
-    async def _fetch_initial_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, start: pd.Timestamp, end: pd.Timestamp):
+    async def _fetch_initial_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, start: pd.Timestamp, end: pd.Timestamp) -> None:
         symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
         data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, start, end)
         definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, data)
@@ -247,7 +246,7 @@ class Contract:
     async def _fetch_databento_definitions_async(self, client: db.Historical, data: db.DBNStore) -> db.DBNStore:
         return await asyncio.to_thread(data.request_full_definitions, client)
 
-    def _set_attributes(self):
+    def _set_attributes(self) -> None:
         self.timestamp = self.data.index
         self.open = pd.Series(self.data["open"])
         self.high = pd.Series(self.data["high"])
@@ -257,7 +256,7 @@ class Contract:
         self.instrument_id = pd.Series(self.definitions["instrument_id"])
         self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
 
-    def _save_data(self, data_path: Path, definitions_path: Path):
+    def _save_data(self, data_path: Path, definitions_path: Path) -> None:
         data_path.parent.mkdir(parents=True, exist_ok=True)
         definitions_path.parent.mkdir(parents=True, exist_ok=True)
         self.data.to_parquet(data_path)
@@ -823,6 +822,8 @@ class Contract:
         start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
         end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
 
+        symbols : str
+
         if data_path.exists() and definitions_path.exists():
             try:
                 self.data = pd.read_parquet(data_path)
@@ -838,7 +839,7 @@ class Contract:
                 print(f"Data and Definitions are not up to date for {self.instrument}")
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
-                    symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
+                    symbols = f"{self.instrument}.{roll_type}.{contract_type}"
                     new_data: db.DBNStore = client.timeseries.get_range(
                         dataset=self.dataset,
                         symbols=[symbols],
@@ -880,7 +881,7 @@ class Contract:
             print(f"Attempting to retrieve data and definitions for {self.instrument}")
             print(f"Creating data and definitions for {self.instrument} at {data_path}")
             # Submit a job request to retrieve the data and definitions
-            symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
+            symbols = f"{self.instrument}.{roll_type}.{contract_type}"
             # TODO: Implement job request submission
             # details: dict[str, Any] = client.batch.submit_job(dataset=self.dataset, symbols=symbols, schema=db.Schema.from_str(self.schema), encoding=db.Encoding.DBN start=start, end=end, stype_in=db.SType.CONTINUOUS, split_duration=db.SplitDuration.NONE)
             # print(f"Job Request Submitted: {details["symbols"]} - {details["schema"]} - {details["start"]} - {details["end"]}")
@@ -918,7 +919,7 @@ class Contract:
             # WARN: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
 
-async def main():
+async def main() -> None:
     contract: Contract = Contract(
         instrument="ES",
         dataset=DATASET.CME,
