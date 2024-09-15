@@ -5,3 +5,4 @@ log.csv
 ibc/
 .envrc
 /.idea
+/.mypy_cache

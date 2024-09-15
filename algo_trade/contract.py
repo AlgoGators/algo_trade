@@ -4,13 +4,16 @@ import databento as db
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import asyncio
 
 load_dotenv()
+
 
 # TODO: Add more vendor catalogs such as Norgate
 class CATALOG(StrEnum):
     DATABENTO = f"data/catalog/databento/"
     NORGATE = f"data/catalog/norgate/"
+
 
 class URI(StrEnum):
     DATABENTO = "s3://algogatorsbucket/catalog/databento/"
@@ -156,6 +159,109 @@ class Contract:
 
     def __repr__(self) -> str:
         return f"Bar: {self.instrument} - {self.dataset} - {self.schema}"
+    
+    async def construct_async(
+        self, client: db.Historical, roll_type: RollType, contract_type: ContractType
+    ) -> None:
+        """
+        Asynchronously constructs the bar by first attempting to retrieve the data and definitions from the data catalog
+
+        Args:
+        -   client: db.Historical - The client to use to retrieve the data and definitions
+        -   roll_type: RollType - The roll type of the bar
+        -   contract_type: ContractType - The contract type of the bar
+
+        Returns:
+        None
+        """
+        data_path: Path = Path(
+            f"{self.catalog}/{self.instrument}/{self.schema}/{roll_type}-{contract_type}-data.parquet"
+        )
+        definitions_path: Path = Path(
+            f"{self.catalog}/{self.instrument}/{self.schema}/{roll_type}-{contract_type}-definitions.parquet"
+        )
+
+        range: dict[str, str] = await self._get_dataset_range_async(client)
+        # Shift the data and definitions end back by one day to account for historical vs intraday data availability
+        start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
+        end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
+
+        if data_path.exists() and definitions_path.exists():
+            try:
+                self.data = pd.read_parquet(data_path)
+                self.definitions = pd.read_parquet(definitions_path)
+            except Exception as e:
+                print(f"Error: {e}")
+                return
+
+            data_end: pd.Timestamp = pd.Timestamp(self.data.index[-1])
+            # Check if the data and definitions are up to date
+            if data_end != end:
+                print(f"Data and Definitions are not up to date for {self.instrument}")
+                await self._update_data_async(client, roll_type, contract_type, data_end, end)
+        else:
+            print(f"Data and Definitions not present for {self.instrument}")
+            await self._fetch_initial_data_async(client, roll_type, contract_type, start, end)
+
+        # Set the timestamp, open, high, low, close, and volume
+        self._set_attributes()
+
+        # Save the new data and definitions to the catalog
+        self._save_data(data_path, definitions_path)
+
+    async def _get_dataset_range_async(self, client: db.Historical) -> dict[str, str]:
+        return await asyncio.to_thread(client.metadata.get_dataset_range, dataset=self.dataset)
+
+    async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp):
+        try:
+            symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
+            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end)
+            new_definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, new_data)
+            
+            # Combine new data with existing data and skip duplicates if they exist based on index
+            self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates()
+            self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    async def _fetch_initial_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, start: pd.Timestamp, end: pd.Timestamp):
+        symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
+        data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, start, end)
+        definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, data)
+
+        self.data = data.to_df()
+        self.definitions = definitions.to_df()
+
+    async def _fetch_databento_data_async(self, client: db.Historical, symbols: str, start: pd.Timestamp, end: pd.Timestamp) -> db.DBNStore:
+        return await asyncio.to_thread(
+            client.timeseries.get_range,
+            dataset=str(self.dataset),
+            symbols=[symbols],
+            schema=db.Schema.from_str(self.schema),
+            start=start,
+            end=end,
+            stype_in=db.SType.CONTINUOUS,
+            stype_out=db.SType.INSTRUMENT_ID,
+        )
+
+    async def _fetch_databento_definitions_async(self, client: db.Historical, data: db.DBNStore) -> db.DBNStore:
+        return await asyncio.to_thread(data.request_full_definitions, client)
+
+    def _set_attributes(self):
+        self.timestamp = self.data.index
+        self.open = pd.Series(self.data["open"])
+        self.high = pd.Series(self.data["high"])
+        self.low = pd.Series(self.data["low"])
+        self.close = pd.Series(self.data["close"])
+        self.volume = pd.Series(self.data["volume"])
+        self.instrument_id = pd.Series(self.definitions["instrument_id"])
+        self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
+
+    def _save_data(self, data_path: Path, definitions_path: Path):
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        definitions_path.parent.mkdir(parents=True, exist_ok=True)
+        self.data.to_parquet(data_path)
+        self.definitions.to_parquet(definitions_path)
 
     @property
     def timestamp(self) -> pd.Index:
@@ -367,7 +473,7 @@ class Contract:
         if self._instrument_id.empty:
             raise ValueError("Instrument ID is empty")
         return self._instrument_id
-    
+
     @instrument_id.setter
     def instrument_id(self, value: pd.Series) -> None:
         """
@@ -483,7 +589,7 @@ class Contract:
                 "volume": self.get_volume(),
             }
         )
-    
+
     @property
     def open_interest(self) -> pd.Series:
         """
@@ -504,6 +610,32 @@ class Contract:
                 return self._open_interest
         elif self.catalog == CATALOG.DATABENTO:
             raise ValueError("Open Interest is not present in Databento Data")
+
+    def _perform_backadjustment(self, data: pd.DataFrame) -> pd.Series:
+        """
+        Perform backadjustment on the close prices of the data
+
+        Args:
+        - data: pd.DataFrame - The data to perform backadjustment on containing the instrument_id and close prices
+
+        Returns:
+        - pd.Series: The backadjusted data
+        """
+
+        backadjusted: pd.DataFrame = data.sort_index(ascending=False)
+        cum: float = 0.0
+        adj: float = 0.0
+        for i in range(1, len(backadjusted)):
+            if (
+                backadjusted.iloc[i]["instrument_id"]
+                != backadjusted.iloc[i - 1]["instrument_id"]
+            ):
+                adj = backadjusted["close"].iloc[i - 1] - backadjusted["close"].iloc[i]
+                cum += adj
+                backadjusted.loc[backadjusted.index[i] :, "close"] += adj
+
+        backadjusted.sort_index(ascending=True, inplace=True)
+        return pd.Series(backadjusted["close"])
 
     @property
     def backadjusted(self) -> pd.Series:
@@ -532,7 +664,7 @@ class Contract:
                 raise ValueError("Data is empty")
             else:
                 return self._backadjusted
-            
+
         elif self.catalog == CATALOG.DATABENTO:
             if self.definitions.empty or self.data.empty:
                 raise ValueError("Data and Definitions are not present")
@@ -547,33 +679,19 @@ class Contract:
             elif self._backadjusted.empty:
                 # Perform backadjustment on close prices and return the backadjusted series
                 # TODO: Check logic for backadjustment
-                backadjusted: pd.DataFrame = pd.DataFrame(self.data.copy()[["close", "instrument_id"]])
-                backadjusted.sort_index(ascending=False, inplace=True)
-                cumm_adj: float = 0.0
-                adj: float = 0.0
-                for i in range(1, len(backadjusted)):
-                    if (
-                        backadjusted.iloc[i]["instrument_id"]
-                        != backadjusted.iloc[i - 1]["instrument_id"]
-                    ):
-                        adj = (
-                            backadjusted["close"].iloc[i - 1]
-                            - backadjusted["close"].iloc[i]
-                        )
-                        cumm_adj += adj
-                        # Adjust all following prices with slicing
-                        backadjusted.loc[backadjusted.index[i] :, "close"] += adj
-
-                backadjusted.sort_index(ascending=True, inplace=True)
-                self._backadjusted = pd.Series(backadjusted["close"])
+                backadjusted: pd.DataFrame = pd.DataFrame(
+                    self.data.copy()[["close", "instrument_id"]]
+                )
+                tmp_backadjusted: pd.Series = self._perform_backadjustment(backadjusted)
+                self._backadjusted = tmp_backadjusted
                 return self._backadjusted
             else:
                 return self._backadjusted
-        
+
     @backadjusted.setter
     def backadjusted(self, value: pd.Series) -> None:
         """
-        Setter for backadjusted series 
+        Setter for backadjusted series
 
         Args:
         -   value: pd.Series | A pandas Series of backadjusted prices
@@ -636,7 +754,9 @@ class Contract:
         -   None
         """
         data_path_csv: Path = Path(f"{self.catalog}/_{self.instrument}_Data.csv")
-        data_path_parquet: Path = Path(f"{self.catalog}/_{self.instrument}_Data.parquet")
+        data_path_parquet: Path = Path(
+            f"{self.catalog}/_{self.instrument}_Data.parquet"
+        )
 
         # Check if the data exists
         if data_path_csv.exists():
@@ -671,9 +791,11 @@ class Contract:
 
             # Write to the catalog using parquet format and save the data
         else:
-            raise(ValueError(f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"))
-
-
+            raise (
+                ValueError(
+                    f"Data not present for {self.instrument}. Please check the catalog path {self.catalog}"
+                )
+            )
 
     def construct(
         self, client: db.Historical, roll_type: RollType, contract_type: ContractType
@@ -713,9 +835,7 @@ class Contract:
             definitions_end: pd.Timestamp = pd.Timestamp(self.definitions.index[-1])
             # Check if the data and definitions are up to date
             if data_end != end:
-                print(
-                    f"Data and Definitions are not up to date for {self.instrument}"
-                )
+                print(f"Data and Definitions are not up to date for {self.instrument}")
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
                     symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
@@ -798,9 +918,7 @@ class Contract:
             # WARN: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
 
-
-if __name__ == "__main__":
-    # Example Usage
+async def main():
     contract: Contract = Contract(
         instrument="ES",
         dataset=DATASET.CME,
@@ -809,3 +927,7 @@ if __name__ == "__main__":
     )
     contract.construct_norgate()
     print(contract.close)
+
+if __name__ == "__main__":
+    # Example Usage
+    asyncio.run(main())

@@ -7,18 +7,17 @@ from algo_trade.dyn_opt import dyn_opt, single_day_optimization
 from algo_trade.contract import Contract
 from algo_trade.portfolio import Portfolio
 from algo_trade.instrument import Future, Agg
-from algo_trade.risk_measures import GARCH, RiskMeasure
+from algo_trade.risk_measures import GARCH, RiskMeasure, Covariance
 from algo_trade.strategy import Strategy
 from algo_trade.rules import capital_scaling, equal_weight, risk_parity
 
 from tests.utils import PriceSeries
 
-def portfolioMultiplier(*args, **kwargs) -> float:
+def mockedPortfolioMultiplier(*args, **kwargs) -> float:
     return 1.0
 
-def positionLimit(*args) -> np.ndarray:
-    number_of_instruments = len(args[1])
-    return np.array([np.inf for _ in range(number_of_instruments)])
+def mockedPositionLimit(*args, **kwargs) -> np.ndarray:
+    return args[1]
 
 class SimRiskObject():
     def __init__(self, *args, **kwargs):
@@ -109,8 +108,8 @@ class TestDynOpt(unittest.TestCase):
             cost_per_contract=0.0,
             asymmetric_risk_buffer=0.00,
             cost_penalty_scalar=0,
-            position_limit_fn=partial(positionLimit),
-            portfolio_multiplier_fn=partial(portfolioMultiplier)
+            position_limit_fn=partial(mockedPositionLimit),
+            portfolio_multiplier_fn=partial(mockedPortfolioMultiplier)
         )
 
         #* Using median because sometimes round might go up or down by 1 where dyn_opt might round slightly differently
@@ -121,13 +120,16 @@ class TestDynOpt(unittest.TestCase):
         capital = 500_000
         tau = 0.20
         asymmetric_risk_buffer = 0.05
-        unadj_prices = pd.read_parquet('tests/testing_data/dyn_opt/unadj_prices.parquet')
-        multipliers = pd.read_parquet('tests/testing_data/dyn_opt/multipliers.parquet')
-        ideal_positions = pd.read_parquet('tests/testing_data/dyn_opt/ideal_positions.parquet')
-        covariances = pd.read_parquet('tests/testing_data/dyn_opt/covariances.parquet')
-        jump_covariances = pd.read_parquet('tests/testing_data/dyn_opt/jump_covariances.parquet')
-        volume = pd.read_parquet('tests/testing_data/dyn_opt/open_interest.parquet')
-        held_positions = pd.read_parquet('tests/testing_data/dyn_opt/optimized_positions.parquet')
+        unadj_prices = pd.read_parquet('tests/testing_data/dyn_opt/unadj_prices.parquet')[-500:]
+        multipliers = pd.read_parquet('tests/testing_data/dyn_opt/multipliers.parquet')[-500:]
+        ideal_positions = pd.read_parquet('tests/testing_data/dyn_opt/ideal_positions.parquet')[-500:]
+        covariances = pd.read_parquet('tests/testing_data/dyn_opt/covariances.parquet')[-500:]
+        jump_covariances = pd.read_parquet('tests/testing_data/dyn_opt/jump_covariances.parquet')[-500:]
+        volume = pd.read_parquet('tests/testing_data/dyn_opt/open_interest.parquet')[-500:]
+        held_positions = pd.read_parquet('tests/testing_data/dyn_opt/optimized_positions.parquet')[-500:]
+
+        covar = Covariance().from_frame(covariances)
+        jump_covar = Covariance().from_frame(jump_covariances)
 
         notional_exposure_per_contract = unadj_prices * multipliers.iloc[0]
         weight_per_contract = notional_exposure_per_contract / capital
@@ -147,8 +149,8 @@ class TestDynOpt(unittest.TestCase):
             weight_per_contract_one_day=weight_per_contract.iloc[-1].values,
             instrument_weight_one_day=instrument_weight.iloc[-1].values,
             notional_exposure_per_contract_one_day=notional_exposure_per_contract.iloc[-1].values,
-            covariances_one_day=covariances.iloc[-1].values,
-            jump_covariances_one_day=jump_covariances.iloc[-1].values,
+            covariances_one_day=covar.iloc[-1].values,
+            jump_covariances_one_day=jump_covar.iloc[-1].values,
             volume_one_day=volume.iloc[-1].values,
             tau=tau,
             capital=capital,
@@ -156,8 +158,8 @@ class TestDynOpt(unittest.TestCase):
             cost_penalty_scalar=cost_penalty_scalar,
             additional_data=(ideal_positions.columns, ideal_positions.index[-1]),
             optimization=True,
-            position_limit_fn=partial(positionLimit),
-            portfolio_multiplier_fn=partial(portfolioMultiplier)
+            position_limit_fn=partial(mockedPositionLimit),
+            portfolio_multiplier_fn=partial(mockedPortfolioMultiplier)
         )
 
         expected_df = pd.read_parquet('tests/testing_data/dyn_opt/optimized_positions.parquet')
@@ -169,12 +171,12 @@ class TestDynOpt(unittest.TestCase):
         capital = 500_000
         tau = 0.20
         asymmetric_risk_buffer = 0.05
-        unadj_prices = pd.read_parquet('tests/testing_data/dyn_opt/unadj_prices.parquet')
-        multipliers = pd.read_parquet('tests/testing_data/dyn_opt/multipliers.parquet')
-        ideal_positions = pd.read_parquet('tests/testing_data/dyn_opt/ideal_positions.parquet')
-        covariances = pd.read_parquet('tests/testing_data/dyn_opt/covariances.parquet')
-        jump_covariances = pd.read_parquet('tests/testing_data/dyn_opt/jump_covariances.parquet')
-        volume = pd.read_parquet('tests/testing_data/dyn_opt/open_interest.parquet')
+        unadj_prices = pd.read_parquet('tests/testing_data/dyn_opt/unadj_prices.parquet')[-500:]
+        multipliers = pd.read_parquet('tests/testing_data/dyn_opt/multipliers.parquet')[-500:]
+        ideal_positions = pd.read_parquet('tests/testing_data/dyn_opt/ideal_positions.parquet')[-500:]
+        covariances = pd.read_parquet('tests/testing_data/dyn_opt/covariances.parquet')[-500:]
+        jump_covariances = pd.read_parquet('tests/testing_data/dyn_opt/jump_covariances.parquet')[-500:]
+        volume = pd.read_parquet('tests/testing_data/dyn_opt/open_interest.parquet')[-500:]
 
         # only use last 500 positions (everything else should take care of itself in the code)
         ideal_positions = ideal_positions[-500:]
@@ -193,9 +195,10 @@ class TestDynOpt(unittest.TestCase):
         portfolio : Portfolio = TestPortfolio(instruments=instruments, risk_target=tau, capital=capital)
 
         portfolio.positions = ideal_positions
+        portfolio.positions.index = pd.to_datetime(portfolio.positions.index)
         sim_risk_object = SimRiskObject()
-        sim_risk_object.covar = covariances
-        sim_risk_object.jump_covar = jump_covariances
+        sim_risk_object.covar = Covariance().from_frame(covariances)
+        sim_risk_object.jump_covar = Covariance().from_frame(jump_covariances)
         sim_risk_object.tau = tau
         portfolio.risk_object = sim_risk_object
 
@@ -205,8 +208,8 @@ class TestDynOpt(unittest.TestCase):
             cost_per_contract=3.0,
             asymmetric_risk_buffer=asymmetric_risk_buffer,
             cost_penalty_scalar=10,
-            position_limit_fn=partial(positionLimit),
-            portfolio_multiplier_fn=partial(portfolioMultiplier)
+            position_limit_fn=partial(mockedPositionLimit),
+            portfolio_multiplier_fn=partial(mockedPortfolioMultiplier)
         )
 
         # Only optimized for last 500 values
@@ -215,5 +218,49 @@ class TestDynOpt(unittest.TestCase):
 
         pd.testing.assert_frame_equal(df, expected_df)
 
+    def test_by_hand_no_cost(self):
+        one_day_costs = np.zeros(3)
+        tau = 0.20
+        held_positions_one_day=np.zeros(3)
+        ideal_positions_one_day=np.array([1.5, 0.7, -1.1])
+        instrument_weight=np.array([1/3, 1/3, 1/3])
+
+        unadj_prices = np.array([100, 200, 300])
+        multipliers = np.array([3, 1.5, 1])
+        capital = 1_000
+
+        notional_exposure_per_contract = unadj_prices * multipliers
+        weight_per_contract = notional_exposure_per_contract / capital
+        covariances=np.array([[1.0, 0.5, 0.3],
+                              [0.5, 1.0, 0.2],
+                              [0.3, 0.2, 1.0]])
+        jump_covariances=covariances
+        volume=np.array([100, 100, 100])
+
+        asymmetric_risk_buffer = 0.05
+
+        optimized_positions : np.ndarray = single_day_optimization(
+            held_positions_one_day=held_positions_one_day,
+            ideal_positions_one_day=ideal_positions_one_day,
+            costs_per_contract_one_day=one_day_costs,
+            weight_per_contract_one_day=weight_per_contract,
+            instrument_weight_one_day=instrument_weight,
+            notional_exposure_per_contract_one_day=notional_exposure_per_contract,
+            covariances_one_day=covariances,
+            jump_covariances_one_day=jump_covariances,
+            volume_one_day=volume,
+            tau=tau,
+            capital=capital,
+            asymmetric_risk_buffer=asymmetric_risk_buffer,
+            cost_penalty_scalar=0,
+            additional_data=(['A', 'B', 'C'], '2022-01-01'),
+            optimization=True,
+            position_limit_fn=partial(mockedPositionLimit),
+            portfolio_multiplier_fn=partial(mockedPortfolioMultiplier)
+        )
+
+        np.testing.assert_array_equal(optimized_positions, np.array([1, 1, -1]))
+
+
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(failfast=True)
