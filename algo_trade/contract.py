@@ -203,11 +203,12 @@ class Contract:
             print(f"Data and Definitions not present for {self.instrument}")
             await self._fetch_initial_data_async(client, roll_type, contract_type, start, end)
 
+        # Save the new data and definitions to the catalog
+        self._save_data(data_path, definitions_path)
+
         # Set the timestamp, open, high, low, close, and volume
         self._set_attributes()
 
-        # Save the new data and definitions to the catalog
-        self._save_data(data_path, definitions_path)
 
     async def _get_dataset_range_async(self, client: db.Historical) -> dict[str, str]:
         return await asyncio.to_thread(client.metadata.get_dataset_range, dataset=self.dataset)
@@ -723,7 +724,10 @@ class Contract:
         )
 
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
-        data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
+        try:
+            data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
+        except Exception as e:
+            print(f"Error within daily expiration creation: {e}")
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
         expirations: pd.Series = data["expiration"]
         return expirations

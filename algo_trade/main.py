@@ -111,6 +111,14 @@ def main() -> None:
 
     asyncio.run(fetch_futures_data(futures, rate=5))
 
+    # If future.front is None, drop from the list
+    for future in futures:
+        try:
+            if future.front is None:
+                futures.remove(future)
+        except:
+            futures.remove(future)
+
     # Create a portfolio
     trend : TradingSystem = Trend(
         instruments=futures,
