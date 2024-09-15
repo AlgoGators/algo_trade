@@ -97,15 +97,15 @@ def main() -> None:
     """
 
     # Find the list of instruments to trade
-    contract_path: Path = Path("data/contract.csv")
+    contract_path : Path = Path("data/contract.csv")
     if not contract_path.exists():
         raise FileNotFoundError(f"Contract file not found at {contract_path}")
 
     # Load the instruments
-    instruments_dataframe: pd.DataFrame = pd.read_csv(contract_path)
+    instruments_dataframe : pd.DataFrame = pd.read_csv(contract_path)
 
     # Initialize the instruments
-    futures: list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
+    futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
 
     asyncio.run(fetch_futures_data(futures))
 
@@ -122,3 +122,6 @@ def main() -> None:
         account=account,
         order_priority=AdaptiveOrderPriority.NORMAL
     )
+
+if __name__ == "__main__":
+    main()
