@@ -6,6 +6,7 @@ import datetime
 from decimal import Decimal
 from contextlib import contextmanager
 import ipaddress
+from dataclasses import dataclass
 
 from ibapi.client import EClient
 from ibapi.order_state import OrderState
@@ -17,6 +18,68 @@ from algo_trade.ib_utils._contract import Contract
 from algo_trade.ib_utils._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
 from algo_trade.ib_utils._type_hints import ContractDetails
 from algo_trade.ib_utils.account import Account, Position, Trade
+from algo_trade.ib_utils.error_codes import ErrorCodes
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
+
+TickerId = int
+
+# @dataclass
+# class ConnectionStatus():
+#     MARKET_DATA_FARM : bool = False
+#     HMDS_DATA_FARM : bool = False # Historical Market Data
+#     SEC_DEF_DATA_FARM : bool = False
+
+#     @property
+#     def is_connected(self):
+#         return self.MARKET_DATA_FARM & self.HMDS_DATA_FARM & self.SEC_DEF_DATA_FARM
+    
+class ConnectionStatus():
+    def __init__(self, condition : threading.Condition) -> None:
+        self.condition = condition
+        self._HMDS_DATA_FARM : bool = False
+        self._SEC_DEF_DATA_FARM : bool = False
+        self._MARKET_DATA_FARM : bool = False
+        self._is_connected : bool = False
+
+    def update_connected_status(self) -> None:
+        if self.HMDS_DATA_FARM & self.SEC_DEF_DATA_FARM & self.MARKET_DATA_FARM:
+            with self.condition:
+                self.condition.notify()
+            self._is_connected = True
+
+    @property
+    def is_connected(self) -> bool:
+        return self._is_connected
+
+    @property
+    def MARKET_DATA_FARM(self) -> bool:
+        return self._MARKET_DATA_FARM
+    
+    @MARKET_DATA_FARM.setter
+    def MARKET_DATA_FARM(self, value : bool) -> None:
+        self._MARKET_DATA_FARM = value
+        self.update_connected_status()
+    
+    @property
+    def HMDS_DATA_FARM(self) -> bool:
+        return self._HMDS_DATA_FARM
+    
+    @HMDS_DATA_FARM.setter
+    def HMDS_DATA_FARM(self, value : bool) -> None:
+        self._HMDS_DATA_FARM = value
+        self.update_connected_status()
+
+    @property
+    def SEC_DEF_DATA_FARM(self) -> bool:
+        return self._SEC_DEF_DATA_FARM
+    
+    @SEC_DEF_DATA_FARM.setter
+    def SEC_DEF_DATA_FARM(self, value : bool) -> None:
+        self._SEC_DEF_DATA_FARM = value
+        self.update_connected_status()
 
 class IBAPI(EClient, EWrapper):
     def __init__(self, condition : threading.Condition) -> None:
@@ -27,6 +90,7 @@ class IBAPI(EClient, EWrapper):
         self.account_summary : dict[str, list[tuple[str|float|Decimal|int, str]]] = {}
         self.open_orders : dict[int, list[str, str, Decimal, str]] = {}
         self.condition = condition
+        self.connection_status : ConnectionStatus = ConnectionStatus(condition=condition)
 
     def contractDetails(self, reqId : int, contractDetails : ContractDetails) -> None:
         self.contract_details[contractDetails.contract.conId] = contractDetails
@@ -46,7 +110,6 @@ class IBAPI(EClient, EWrapper):
         #* converts to our abstract of contract
         #* note ibkr means quantity when it says position :/
         self.positions.append(Position(Contract(contract=contract), position))
-        # self.positions[contract.conId] = [Contract(contract=contract), position] 
 
     def positionEnd(self) -> None:
         with self.condition:
@@ -59,6 +122,32 @@ class IBAPI(EClient, EWrapper):
             self.account_summary[tag] = [(value, currency)]
 
     def accountSummaryEnd(self, reqId: int) -> None:
+        with self.condition:
+            self.condition.notify()
+
+    def error(self, reqId : TickerId, errorCode : int, errorString : str, advancedOrderRejectJson : str = ""):
+        match errorCode:
+            case ErrorCodes.HMDS_DATA_FARM:
+                self.connection_status.HMDS_DATA_FARM = True
+            case ErrorCodes.MARKET_DATA_FARM:
+                self.connection_status.MARKET_DATA_FARM = True
+            case ErrorCodes.SEC_DEF_DATA_FARM:
+                self.connection_status.SEC_DEF_DATA_FARM = True
+            case ErrorCodes.HMDS_DATA_FARM_INACTIVE:
+                self.connection_status.HMDS_DATA_FARM = True
+            case ErrorCodes.CANT_CONNECT_TO_TWS:
+                raise NotImplementedError("Failed to connect to TWS")
+            case _:
+                raise NotImplementedError(f"Error Code: {errorCode} | Error Message: {errorString}")
+
+        if advancedOrderRejectJson:
+            logger.error("ERROR %s %s %s %s", reqId, errorCode, errorString, advancedOrderRejectJson)
+        else:
+            logger.error("ERROR %s %s %s", reqId, errorCode, errorString)
+
+    def connectAck(self):
+        super().connectAck()
+        logging.warning("Connected to TWS")
         with self.condition:
             self.condition.notify()
 
@@ -85,18 +174,21 @@ class APIHandler:
 
     def __await_connection(self) -> None:
         with self.app.condition:
-            logging.warning("Waiting for connection to TWS")
             timed_out = not self.app.condition.wait(TIMEOUT)
         if timed_out or not self.app.isConnected():
             raise ConnectionError("Failed to connect to TWS")
-        logging.warning("Connected to TWS")
 
     def connect(self) -> None:
+        logging.warning("Connecting to TWS...")
         self.app.connect(str(self.IP_ADDRESS), self.PORT, self.CLIENT_ID)
         self.api_thread = threading.Thread(
             target=run_loop, args=(self.app,), daemon=True)
         self.api_thread.start()
         self.__await_connection()
+        with self.app.connection_status.condition:
+            self.app.connection_status.condition.wait(TIMEOUT)
+        # while not self.app.connection_status.is_connected:
+        #     time.sleep(1)
 
     def disconnect(self) -> None: self.app.disconnect()
 
@@ -109,24 +201,16 @@ class APIHandler:
             raise TimeoutError(f"Failed to retrieve account summary for {tag}")
         return self.app.account_summary
 
-    # def get_expirations(
-    #         self,
-    #         contract : Contract) -> list[str]:
-    #     """
-    #     Returns list of strings, each corresponding to an 8 digit date YYYYMMDD for contract expiry
-    #     """
-    #     possible_contracts : dict[str, Contract] = self.get_contract_details(contract)
-    #     return [x.lastTradeDateOrContractMonth for x in possible_contracts.values()]
-
     def get_soonest_valid_expiry(self, contract : Contract, min_DTE : int) -> str:
         """
         Gets the next expiration date for a contract that is at least min_DTE days away
         """
-        # expirations : list[str] = self.get_expirations(contract)
+
+        # if self.app.connection_status.SEC_DEF_DATA_FARM:
+
         possible_contracts : dict[str, Contract] = self.get_contract_details(contract)
         expirations : list[str] = [x.lastTradeDateOrContractMonth for x in possible_contracts.values()]
         expirations.sort() #@ Nice thing about YYYYMMDD is that it's sortable
-        # expirations = sorted(expirations)
 
         #* finds the first expiration that meets the condition, else None
         #* ... likely too Pythonic and could be rewritten for better clarity
@@ -196,7 +280,6 @@ class APIHandler:
         #! necessary to get exchange and other pieces of data for the contract
         #* hate this, but contract generated doesn't exist in their own DB
         for position in positions:
-        # for conId, (_, quantity) in positions.items():
             contract_by_ID = Contract(conId=position.contract.conId)
             positions.append(
                 Position(
@@ -204,7 +287,6 @@ class APIHandler:
                     quantity=position.quantity
                 )
             )
-            # positions[conId] = [self.get_contract_details(contract_by_ID)[conId], quantity]
         return positions
 
     def get_contract_details(
@@ -268,3 +350,9 @@ def api_handler_context(
         yield handler
     finally:
         handler.disconnect()
+        handler.api_thread.join()
+
+if __name__ == '__main__':
+    with api_handler_context(ipaddress.ip_address("127.0.0.1"), 4002, 0) as api_handler:
+        api_handler.cancel_outstanding_orders()
+        print(api_handler.app.connection_status.is_connected)
