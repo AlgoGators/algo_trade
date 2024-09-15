@@ -1,5 +1,4 @@
 from functools import partial
-
 from algo_trade.trading_system import TradingSystem
 from algo_trade.strategy import Strategy, FutureDataFetcher
 from algo_trade.instrument import Instrument, Future

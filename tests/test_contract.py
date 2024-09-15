@@ -23,8 +23,6 @@ from algo_trade.contract import Contract, Agg, ContractType, RollType, CATALOG, 
 load_dotenv()
 if os.getenv('DATABENTO_API_KEY') is None:
     raise ValueError('DATABENTO_API_KEY not found in environment variables.')
-else:
-    print(f"API Key: {os.getenv('DATABENTO_API_KEY')}")
 
 
 @pytest.fixture

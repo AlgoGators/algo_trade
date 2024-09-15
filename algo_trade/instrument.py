@@ -1,11 +1,19 @@
 import os
 from typing import Tuple, Optional
+import asyncio
 import databento as db
 import pandas as pd
-from enum import Enum 
+from enum import Enum
 from dotenv import load_dotenv
-
-from algo_trade.contract import ASSET, DATASET, CATALOG, Agg, RollType, Contract, ContractType
+from algo_trade.contract import (
+    ASSET,
+    DATASET,
+    CATALOG,
+    Agg,
+    RollType,
+    Contract,
+    ContractType,
+)
 
 load_dotenv()
 
@@ -64,7 +72,16 @@ class Instrument():
 
     security_type: SecurityType
 
-    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, security_type: Optional['SecurityType'] = None, multiplier : float = 1.0, ib_symbol : str | None = None):
+    def __init__(
+            self,
+            symbol: str,
+            dataset: str,
+            currency : str,
+            exchange : str,
+            security_type: Optional['SecurityType'] = None,
+            multiplier : float = 1.0,
+            ib_symbol : str | None = None
+        ) -> None:
         self._symbol = symbol
         self._ib_symbol = ib_symbol if ib_symbol is not None else symbol
         self._dataset = dataset
@@ -189,7 +206,7 @@ class Instrument():
         Tuple[str, str]: The symbol and dataset of the instrument
         """
         return (self.symbol, self.dataset)
-    
+
     #! PRICE MUST BE THE PRICE THAT YOU WANT TO USE FOR BACKTESTING
     @property
     def price(self) -> pd.Series:
@@ -203,7 +220,7 @@ class Instrument():
         pd.Series: The prices of the instrument
         """
         raise NotImplementedError()
-    
+
     @property
     def percent_returns(self) -> pd.Series:
         """
@@ -216,6 +233,41 @@ class Instrument():
         pd.Series: The percent returns of the instrument
         """
         raise NotImplementedError()
+
+    async def add_data(
+        self, agg: Agg, roll_type: RollType, contract_type: ContractType
+    ) -> None:
+        """
+        Asynchronously add data to the instrument.
+        """
+        client = db.Historical(key=os.getenv("DATABENTO_KEY"))
+
+        contract = Contract(
+            instrument=self.symbol,
+            dataset=self.dataset,
+            schema=agg,
+        )
+
+        try:
+            await contract.construct_async(client, roll_type, contract_type)
+            self._process_and_store_data(contract, agg, roll_type, contract_type)
+        except Exception as e:
+            print(f"Error fetching data for {self.symbol}: {e}")
+
+    def _process_and_store_data(
+        self,
+        contract: Contract,
+        agg: Agg,
+        roll_type: RollType,
+        contract_type: ContractType,
+    ):
+        # Process and store the fetched data
+        if roll_type == RollType.CALENDAR and contract_type == ContractType.FRONT:
+            self.front = contract
+            self.price = contract.backadjusted
+        elif roll_type == RollType.CALENDAR and contract_type == ContractType.BACK:
+            self.back = contract
+        # Add more conditions if needed for other roll types and contract types
 
 
 class Future(Instrument):
@@ -237,9 +289,16 @@ class Future(Instrument):
     """
 
     security_type = SecurityType.FUTURE
-
     def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, multiplier: float = 1.0):
-        super().__init__(symbol, dataset, currency, exchange)
+        super().__init__(
+            symbol,
+            dataset,
+            currency,
+            exchange,
+            security_type=SecurityType.FUTURE,
+            multiplier=multiplier
+        )
+
         self.multiplier: float = multiplier
         self.contracts: dict[str, Contract] = {}
         self._front: Contract
@@ -429,6 +488,44 @@ class Future(Instrument):
         self.front = contract
         self.price = contract.backadjusted
 
+    async def add_data_async(
+        self,
+        schema: Agg,
+        roll_type: RollType,
+        contract_type: ContractType,
+        name: Optional[str] = None,
+    ) -> None:
+        """
+        Asynchronously adds data to the future instrument but first creates a bar object based on the schema
+
+        Args:
+        schema: Schema.BAR - The schema of the bar
+        roll_type: RollType - The roll type of the bar
+        contract_type: ContractType - The contract type of the bar
+        name: Optional[str] - The name of the bar
+
+        Returns:
+        None
+        """
+        contract: Contract = Contract(
+            instrument=self.symbol,
+            dataset=DATASET.from_str(self.dataset),
+            schema=schema,
+        )
+
+        if name is None:
+            name = f"{contract.get_instrument()}-{roll_type}-{contract_type}"
+
+        try:
+            await contract.construct_async(
+                client=self.client, roll_type=roll_type, contract_type=contract_type
+            )
+            self._process_and_store_data(
+                contract, schema, roll_type, contract_type
+            )
+        except Exception as e:
+            print(f"Error fetching data for {self.symbol}: {e}")
+
     @property
     def percent_returns(self) -> pd.Series:
         """
@@ -442,10 +539,11 @@ class Future(Instrument):
         """
 
         if not hasattr(self, "_percent_change"):
-            #* For equation see: 
+            # * For equation see:
             # https://qoppac.blogspot.com/2023/02/percentage-or-price-differences-when.html
-            self._percent_change : pd.Series = (
-                self.price - self.price.shift(1)) / self.front.get_close().shift(1)
+            self._percent_change: pd.Series = (
+                self.price - self.price.shift(1)
+            ) / self.front.get_close().shift(1)
 
             self._percent_change.name = self.name
 
@@ -465,17 +563,32 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
         for n, row in instrument_df.iterrows()
     ]
 
-if __name__ == "__main__":
-    # lst = initialize_instruments(pd.read_csv('data/contract.csv'))
-    # Testing the Bar class
-
-    # sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+async def main():
     ex: str = "CME"
     bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
+    multipliers: dict[str, float] = {
+        "ES": 50,
+        "NQ": 20,
+        "RTY": 50,
+        "YM": 5,
+        "ZN": 1000,
+    }
     futures: list[Future] = []
+
+    tasks = []
+
     for sym in bucket:
-        fut: Future = Future(symbol=sym, dataset=ex)
-        fut.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
+        fut: Future = Future(symbol=sym, dataset=ex, multiplier=multipliers[sym])
+        task = asyncio.create_task(fut.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT))
+        tasks.append(task)
         futures.append(fut)
+
+    await asyncio.gather(*tasks)
+
+    print("Futures:")
     
-    print(futures)
+    for fut in futures:
+        print(fut.price)
+
+if __name__ == "__main__":
+    asyncio.run(main())

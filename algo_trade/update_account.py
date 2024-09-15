@@ -1,6 +1,6 @@
 import ipaddress
-
 from algo_trade.ib_utils.account import Account
+from decimal import Decimal
 from algo_trade.ib_utils.api_handler import api_handler_context
 from algo_trade.ib_utils.trading_algorithm import TradingAlgorithm
 from algo_trade.ib_utils._enums import AdaptiveOrderPriority
