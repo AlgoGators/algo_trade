@@ -1,10 +1,9 @@
 import unittest
-import pandas as pd
+import pandas as pd # type: ignore
 import numpy as np
 from algo_trade.pnl import PnL  # Replace with the correct module path for PnL
 
 class TestPnL(unittest.TestCase):
-
     def setUp(self):
         # Setup some sample data for testing
         self.positions = pd.DataFrame({
@@ -13,7 +12,7 @@ class TestPnL(unittest.TestCase):
         }, index=pd.date_range('2023-01-01', periods=5))
 
         self.prices = pd.DataFrame({
-            'Instrument_A': [100, 102, 101, 103, 104],
+            'Instrument_A': [100, 102, 101, 103, 105],
             'Instrument_B': [200, 198, 202, 199, 201]
         }, index=pd.date_range('2023-01-01', periods=5))
 
@@ -34,11 +33,14 @@ class TestPnL(unittest.TestCase):
 
         # Validate shape and data types
         self.assertEqual(daily_point_return.shape, self.positions.shape)
+        self.assertEqual(daily_point_return.sum().sum(), np.float64(50.0))
 
     def test_get_cumulative_point_return(self):
         # Test cumulative point returns
         cumulative_point_return = self.pnl.get(PnL.ReturnType.POINT, PnL.Timespan.CUMULATIVE, aggregate=False)
         self.assertIsInstance(cumulative_point_return, pd.DataFrame)
+        self.assertEqual(cumulative_point_return.iloc[-1].sum(), np.float64(50.0))
+        self.assertEqual(cumulative_point_return.shape, self.positions.shape)
 
     def test_get_daily_percent_return(self):
         # Test daily percent returns without aggregation
