@@ -1,6 +1,5 @@
 import os
-from typing import Any, Dict, Tuple, Optional
-from abc import ABC
+from typing import Tuple, Optional
 import asyncio
 import databento as db
 import pandas as pd
@@ -18,8 +17,43 @@ from algo_trade.contract import (
 
 load_dotenv()
 
+class SecurityType(Enum):
+    FUTURE = ('Future', 'FUT')
 
-class Instrument:
+    def __init__(self, obj_name, string):
+        self._obj_name = obj_name
+        self.string = string
+
+    @property
+    def obj(self):
+        # Dynamically resolve the object class when accessed
+        if isinstance(self._obj_name, str):
+            return globals()[self._obj_name]
+        return self._obj_name
+
+    @classmethod
+    def from_str(cls, value: str) -> "SecurityType":
+        """
+        Converts a string to a SecurityType enum based on the value to the Enum name and not value
+        so "FUTURE" -> FUTURE
+
+        Args:
+            - value: str - The value to convert to a SecurityType enum
+
+        Returns:
+            - SecurityType: The SecurityType enum
+        """
+        try:
+            return cls[value.upper()]
+        except ValueError:
+            # If exact match fails, look for a case-insensitive match
+            for member in cls:
+                if member.name.lower() == value.lower():
+                    return member
+
+            raise ValueError(f"{value} is not a valid {cls.__name__}")
+
+class Instrument():
     """
     Instrument class to act as a base class for all asset classes
 
@@ -36,21 +70,28 @@ class Instrument:
 
     """
 
+    security_type: SecurityType
+
     def __init__(
-        self,
-        symbol: str,
-        dataset: str,
-        instrument_type: Optional["InstrumentType"] = None,
-        multiplier: float = 1.0,
-    ):
+            self,
+            symbol: str,
+            dataset: str,
+            currency : str,
+            exchange : str,
+            security_type: Optional['SecurityType'] = None,
+            multiplier : float = 1.0,
+            ib_symbol : str | None = None
+        ) -> None:
         self._symbol = symbol
+        self._ib_symbol = ib_symbol if ib_symbol is not None else symbol
         self._dataset = dataset
         self.client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
-        self.asset: ASSET
         self.multiplier = multiplier
+        self._currency = currency
+        self._exchange = exchange
 
-        if instrument_type is not None:
-            self.__class__ = instrument_type.value
+        if security_type is not None:
+            self.__class__ = security_type.obj
 
     @property
     def symbol(self) -> str:
@@ -64,6 +105,45 @@ class Instrument:
         str: The symbol of the instrument
         """
         return self._symbol
+
+    @property
+    def ib_symbol(self) -> str:
+        """
+        Returns the IBKR symbol of the instrument
+        
+        Args:
+        None
+        
+        Returns:
+        str: The IBKR symbol of the instrument
+        """
+        return self._ib_symbol
+
+    @property
+    def currency(self) -> str:
+        """
+        Returns the currency of the instrument
+
+        Args:
+        None
+
+        Returns:
+        str: The currency the instrument is denominated in
+        """
+        return self._currency
+    
+    @property
+    def exchange(self) -> str:
+        """
+        Returns the exchange the instrument trades on
+
+        Args:
+        None
+
+        Returns:
+        str: The exchange the instrument trades on
+        """
+        return self._exchange
 
     @property
     def dataset(self) -> str:
@@ -114,18 +194,6 @@ class Instrument:
         str: The dataset of the instrument
         """
         return self.dataset
-
-    def get_asset(self) -> ASSET:
-        """
-        Returns the asset of the instrument
-
-        Args:
-        None
-
-        Returns:
-        str: The asset of the instrument
-        """
-        return self.asset
 
     def get_collection(self) -> Tuple[str, str]:
         """
@@ -220,16 +288,19 @@ class Future(Instrument):
     -   add_contract(contract: Contract, contract_type: ContractType) -> None - Adds a contract to the future instrument
     """
 
-    def __init__(self, symbol: str, dataset: str, multiplier: float):
+    security_type = SecurityType.FUTURE
+    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, multiplier: float = 1.0):
         super().__init__(
             symbol,
             dataset,
-            instrument_type=InstrumentType.FUTURE,
-            multiplier=multiplier,
+            currency,
+            exchange,
+            security_type=SecurityType.FUTURE,
+            multiplier=multiplier
         )
+
         self.multiplier: float = multiplier
         self.contracts: dict[str, Contract] = {}
-        self.asset = ASSET.FUT
         self._front: Contract
         self._back: Contract
         self._price: pd.Series
@@ -476,41 +547,18 @@ class Future(Instrument):
 
             self._percent_change.name = self.name
 
-        return self._percent_change
+        return self._percent_change    
 
-
-class InstrumentType(Enum):
-    FUTURE = Future
-
-    @classmethod
-    def from_str(cls, value: str) -> "InstrumentType":
-        """
-        Converts a string to a InstrumentType enum based on the value to the Enum name and not value
-        so "FUTURE" -> FUTURE
-
-        Args:
-            - value: str - The value to convert to a InstrumentType enum
-
-        Returns:
-            - InstrumentType: The InstrumentType enum
-        """
-        try:
-            return cls[value.upper()]
-        except ValueError:
-
-            for member in cls:
-                if member.name.lower() == value.lower():
-                    return member
-
-            raise ValueError(f"{value} is not a valid {cls.__name__}")
-
-
-def initialize_instruments(instrument_df: pd.DataFrame) -> list[Instrument]:
+def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
     return [
         Instrument(
-            row.loc["dataSymbol"],
-            row.loc["dataSet"],
-            InstrumentType.from_str(row.loc["instrumentType"], row.loc["multiplier"]),
+            symbol=row.loc['dataSymbol'],
+            dataset=row.loc['dataSet'],
+            currency=row.loc['currency'],
+            exchange=row.loc['exchange'],
+            security_type=SecurityType.from_str(row.loc['instrumentType']),
+            multiplier=row.loc['multiplier'],
+            ib_symbol=row.loc['ibSymbol']
         )
         for n, row in instrument_df.iterrows()
     ]

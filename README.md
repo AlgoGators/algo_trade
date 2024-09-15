@@ -1,46 +1,19 @@
 # Algo-Trade
 
+## IBAPI Downtimes (from [IBKR](https://www.interactivebrokers.com/en/?f=%2Fen%2Fsoftware%2FsystemStatus.php)):
+| Server Reset Times  | North America                | Europe | Asia |
+|---------------------|:----------------------------:|:------:|:----:|
+| Saturday - Thursday | 23:45 - 00:45 ET<sup>1</sup> |  ...   |  ... |
+| Friday              | 23:00 - 03:00 ET<sup>2</sup> |  ...   |  ... |
+
+
+> Disclosures: 
+> 1. The reset period describes the duration during which your account may be unavailable for a few seconds. It does not indicate that the entire system will be unavailable for the full reset period. During a reset period, there may be an interruption in the ability to log in or manage orders. Existing orders (native types) will operate normally although execution reports and simulated orders will be delayed until the reset is complete.
+> 2. During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
+
+---
 
 ![workflow](https://github.com/AlgoGators/algo_trade/actions/workflows/tests.yml/badge.svg)
-
-## Running ib-gateway:
-This relies on [gnzsnz](https://github.com/gnzsnz)'s [ib-gateway-docker](https://github.com/gnzsnz/ib-gateway-docker) repository.
-1. Clone the repository to desired machine.
-2. Place contents of the repository into algo_trade/ibc
-3. Create a .env in the root of the repository.
-4. Inside this file, copy the following, change userName and passWord:
-```
-TWS_USERID=userName
-TWS_PASSWORD=passWord
-# ib-gateway
-#TWS_SETTINGS_PATH=/home/ibgateway/Jts
-# tws
-#TWS_SETTINGS_PATH=/config/tws_settings
-TWS_SETTINGS_PATH=
-TWS_ACCEPT_INCOMING=
-TRADING_MODE=paper
-READ_ONLY_API=no
-VNC_SERVER_PASSWORD=myVncPassword
-TWOFA_TIMEOUT_ACTION=restart
-BYPASS_WARNING=
-AUTO_RESTART_TIME=11:59 PM
-AUTO_LOGOFF_TIME=
-TWS_COLD_RESTART=
-SAVE_TWS_SETTINGS=
-RELOGIN_AFTER_2FA_TIMEOUT=yes
-TIME_ZONE=Europe/Zurich
-CUSTOM_CONFIG=
-SSH_TUNNEL=
-SSH_OPTIONS=
-SSH_ALIVE_INTERVAL=
-SSH_ALIVE_COUNT=
-SSH_PASSPHRASE=
-SSH_REMOTE_PORT=
-SSH_USER_TUNNEL=
-SSH_RESTART=
-SSH_VNC_PORT=
-```
-4. Run docker-compose up
 
 ## Poetry
 ### Installing Poetry

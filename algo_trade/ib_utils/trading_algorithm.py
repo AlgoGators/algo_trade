@@ -1,10 +1,9 @@
-import time
-from ..src._contract import Contract
 from ibapi.order import Order
-from ..src._tag_value import TagValue
-from ..src._enums import OrderType, AlgoStrategy, AdaptiveOrderPriority
-from ..src.api_handler import IBAPI
-from ..src._config import TIMEOUT
+from algo_trade.ib_utils._contract import Contract
+from algo_trade.ib_utils._config import TIMEOUT
+from algo_trade.ib_utils._enums import AlgoStrategy, AdaptiveOrderPriority, OrderType
+from algo_trade.ib_utils._tag_value import TagValue
+from algo_trade.ib_utils.api_handler import IBAPI
 
 class AvailableAlgoParams:
     @staticmethod

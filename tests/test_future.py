@@ -30,7 +30,7 @@ def future() -> Future:
     """
     Initialize a Future object for testing.
     """
-    future: Future = Future("ES", "CME", multiplier=5.0)
+    future: Future = Future("ES", "CME", multiplier=5.0, exchange="CME", currency="USD")
     future.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
     return future
 

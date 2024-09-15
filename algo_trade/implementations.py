@@ -1,4 +1,5 @@
-from algo_trade.portfolio import Portfolio
+from functools import partial
+from algo_trade.trading_system import TradingSystem
 from algo_trade.strategy import Strategy, FutureDataFetcher
 from algo_trade.instrument import Instrument, Future
 from algo_trade.pnl import PnL
@@ -32,8 +33,8 @@ class TrendFollowing(Strategy[Future]):
         FutureDataFetcher.fetch_front(self.instruments)
 
 
-### Example Portfolio
-class Trend(Portfolio):
+### Example TradingSystem
+class Trend(TradingSystem):
     def __init__(self, instruments : list[Instrument], risk_target : float, capital : float):
         super().__init__()
         self.risk_object = GARCH(
@@ -47,7 +48,7 @@ class Trend(Portfolio):
         ]
         self.capital = capital
         self.instruments = instruments
-        self.portfolio_rules = [
+        self.trading_system_rules = [
             partial(
                 dyn_opt,
                 instrument_weights=equal_weight(instruments=instruments),

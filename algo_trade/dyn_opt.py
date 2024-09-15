@@ -5,7 +5,7 @@ import logging
 from typing import Callable
 from functools import reduce
 
-from algo_trade.portfolio import Portfolio
+from algo_trade.trading_system import TradingSystem
 from algo_trade.instrument import Future
 from algo_trade.risk_logging import CsvFormatter
 from algo_trade.risk_measures import Covariance
@@ -184,13 +184,13 @@ def single_day_optimization(
     return round_multiple(portfolio_risk_limited_positions, 1) if optimization else portfolio_risk_limited_positions
 
 def dyn_opt(
-        portfolio : Portfolio[Future],
+        portfolio : TradingSystem[Future],
         instrument_weights : pd.DataFrame,
         cost_per_contract : float,
         asymmetric_risk_buffer : float,
         cost_penalty_scalar : float,
         position_limit_fn : Callable,
-        portfolio_multiplier_fn : Callable) -> Portfolio[Future]:
+        portfolio_multiplier_fn : Callable) -> TradingSystem[Future]:
     
     unadj_prices = pd.concat([instrument.front.close.rename(instrument.name) for instrument in portfolio.instruments], axis=1)
     covariances : Covariance = portfolio.risk_object.get_cov()

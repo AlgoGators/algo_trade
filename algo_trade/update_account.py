@@ -1,8 +1,6 @@
 import ipaddress
-
+from algo_trade.ib_utils.account import Account
 from decimal import Decimal
-
-from algo_trade.ib_utils.account import Account, Position, Contract
 from algo_trade.ib_utils.api_handler import api_handler_context
 from algo_trade.ib_utils.trading_algorithm import TradingAlgorithm
 from algo_trade.ib_utils._enums import AdaptiveOrderPriority
@@ -22,12 +20,3 @@ def update_account(account : Account, order_priority : AdaptiveOrderPriority):
             trades=trades,
             trading_algorithm=TradingAlgorithm(order_priority).adaptive_market_order
         )
-
-if __name__ == "__main__":
-    new_positions = [
-        Position(Contract(symbol='MES', multiplier='5', exchange='CME', currency='USD', secType='FUT'), Decimal(2)),
-        Position(Contract(symbol='MYM', multiplier='0.5', exchange='CBOT', currency='USD', secType='FUT'), Decimal(-2))
-    ]
-    new_account = Account(new_positions)
-
-    update_account(account=new_account, order_priority=AdaptiveOrderPriority.NORMAL)

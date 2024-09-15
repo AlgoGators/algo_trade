@@ -1,6 +1,6 @@
 from decimal import Decimal
 import typing
-from ..src._contract import Contract
+from algo_trade.ib_utils._contract import Contract
 
 class ContractDetails:
     contract : Contract

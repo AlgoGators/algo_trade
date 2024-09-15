@@ -1,0 +1,8 @@
+from enum import IntEnum
+
+class ErrorCodes(IntEnum):
+    CANT_CONNECT_TO_TWS = 502
+    MARKET_DATA_FARM = 2104
+    HMDS_DATA_FARM = 2106
+    HMDS_DATA_FARM_INACTIVE = 2107
+    SEC_DEF_DATA_FARM = 2158
