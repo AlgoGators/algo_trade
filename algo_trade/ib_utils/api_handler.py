@@ -33,12 +33,17 @@ class ConnectionStatus():
         self._SEC_DEF_DATA_FARM : bool = False
         self._MARKET_DATA_FARM : bool = False
         self._is_connected : bool = False
+        self.__count : int = 0
 
     def update_connected_status(self) -> None:
         if self.HMDS_DATA_FARM & self.SEC_DEF_DATA_FARM & self.MARKET_DATA_FARM:
             with self.condition:
                 self.condition.notify()
             self._is_connected = True
+
+    @property
+    def count(self) -> int:
+        return self.__count
 
     @property
     def is_connected(self) -> bool:
@@ -50,6 +55,9 @@ class ConnectionStatus():
     
     @MARKET_DATA_FARM.setter
     def MARKET_DATA_FARM(self, value : bool) -> None:
+        if value and not self._MARKET_DATA_FARM:
+            self.__count += 1
+        logging.info(f"Data Farm: {self.__count}/3")
         self._MARKET_DATA_FARM = value
         self.update_connected_status()
     
@@ -59,6 +67,9 @@ class ConnectionStatus():
     
     @HMDS_DATA_FARM.setter
     def HMDS_DATA_FARM(self, value : bool) -> None:
+        if value and not self._HMDS_DATA_FARM:
+            self.__count += 1
+        logging.info(f"Data Farm: {self.__count}/3")
         self._HMDS_DATA_FARM = value
         self.update_connected_status()
 
@@ -68,6 +79,9 @@ class ConnectionStatus():
     
     @SEC_DEF_DATA_FARM.setter
     def SEC_DEF_DATA_FARM(self, value : bool) -> None:
+        if value and not self._SEC_DEF_DATA_FARM:
+            self.__count += 1
+        logging.info(f"Data Farm: {self.__count}/3")
         self._SEC_DEF_DATA_FARM = value
         self.update_connected_status()
 
@@ -177,6 +191,7 @@ class APIHandler:
         self.__await_connection()
         with self.app.connection_status.condition:
             self.app.connection_status.condition.wait(TIMEOUT)
+        logging.warning(f"Connected to {self.app.connection_status.count} / {self.app.connection_status.count} Data Farms")
 
     def disconnect(self) -> None: self.app.disconnect()
 
