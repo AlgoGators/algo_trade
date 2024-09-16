@@ -722,9 +722,12 @@ class Contract:
         # We need to index our definitons by the instrument_id
         exp_df: pd.DataFrame = (
             definitions.reset_index()[["expiration", "instrument_id"]]
-            .set_index("instrument_id")
             .drop_duplicates()
+            .set_index("instrument_id")
         )
+
+        exp_df = exp_df[~exp_df.index.duplicated(keep="first")]
+        assert exp_df.index.is_unique
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
         data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
