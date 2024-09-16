@@ -109,17 +109,11 @@ def main() -> None:
     # Initialize the instruments
     futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
 
-    asyncio.run(fetch_futures_data(futures, rate=5))
+    # The rate limit initializes a semaphore to limit the number of concurrent requests... this can be adjusted to find an optimal rate according to the Databento API Documentation
+    rate_limit : int = 5
+    asyncio.run(fetch_futures_data(futures, rate=rate_limit))
 
-    # If future.front is None, drop from the list
-    for future in futures:
-        try:
-            if future.front is None:
-                futures.remove(future)
-        except:
-            futures.remove(future)
-
-    # Create a portfolio
+    # Create a trading system consisting of our trend following strategy
     trend : TradingSystem = Trend(
         instruments=futures,
         risk_target=0.20,

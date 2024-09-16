@@ -256,7 +256,10 @@ class Contract:
         self.close = pd.Series(self.data["close"])
         self.volume = pd.Series(self.data["volume"])
         self.instrument_id = pd.Series(self.definitions["instrument_id"])
-        self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
+        try:
+            self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
+        except Exception as e:
+            print(f"Error within converting expiration into daily data: {e}")
 
     def _save_data(self, data_path: Path, definitions_path: Path):
         data_path.parent.mkdir(parents=True, exist_ok=True)
@@ -722,12 +725,8 @@ class Contract:
             .set_index("instrument_id")
             .drop_duplicates()
         )
-
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
-        try:
-            data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
-        except Exception as e:
-            print(f"Error within daily expiration creation: {e}")
+        data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
         expirations: pd.Series = data["expiration"]
         return expirations
