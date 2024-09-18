@@ -125,19 +125,12 @@ class TradingSystem(ABC, Generic[T]):
 
     def __getitem__(self, key) -> Account:
         positions : pd.DataFrame = self.positions.iloc[[key]]
-        key_pairs = {instrument.name: instrument.ib_symbol for instrument in self.instruments}
 
         ibkr_positions : list[Position] = [
             Position(
-                Contract(
-                    symbol=key_pairs[column],
-                    multiplier=self.multipliers[column].iloc[0],
-                    exchange=str(Decimal(self.exchanges[column].iloc[0])), #? Decimal ensures that the string is in IBKR format
-                    currency=self.currencies[column].iloc[0],
-                    secType=self.security_types[column].iloc[0].string
-                ),
-                Decimal(int(positions[column].iloc[0])))
-            for column in positions.columns
+                Contract.from_instrument(instrument),
+                Decimal(int(positions[instrument.symbol].iloc[0])))
+            for instrument in self.instruments
         ]
 
         return Account(ibkr_positions)
