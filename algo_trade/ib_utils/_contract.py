@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from ibapi import contract
+
+from algo_trade.instrument import Instrument, SecurityType
 
 class Contract(contract.Contract):
     def __init__(
@@ -28,6 +32,17 @@ class Contract(contract.Contract):
             self.multiplier = contract.multiplier
             self.exchange = contract.exchange
             self.currency = contract.currency
+
+    def from_instrument(instrument : Instrument) -> 'Contract':
+        contract = Contract()
+        contract.symbol = instrument.ib_symbol
+        contract.secType = instrument.security_type.string
+        contract.exchange = instrument.exchange
+        contract.currency = instrument.currency
+        if instrument.security_type == SecurityType.FUTURE:
+            contract.multiplier = str(Decimal(instrument.multiplier))
+
+        return contract
 
     def __str__(self):
         return f"{self.conId},{self.symbol},{self.exchange},{self.multiplier},{self.currency},{self.secType}"
