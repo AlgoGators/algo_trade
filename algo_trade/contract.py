@@ -216,7 +216,7 @@ class Contract:
     async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp):
         try:
             symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
-            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end)
+            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end + pd.Timedelta(days=1))
             new_definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, new_data)
             
             # Combine new data with existing data and skip duplicates if they exist based on index
