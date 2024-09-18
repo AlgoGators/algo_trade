@@ -7,7 +7,7 @@ from algo_trade.ib_utils.api_handler import api_handler_context
 from algo_trade.ib_utils.error_codes import NoSecurityFound
 from algo_trade.instrument import Instrument
 
-def validate_contracts(instruments : list[Instrument]) -> None:
+def validate_instruments(instruments : list[Instrument]) -> None:
     with api_handler_context(ipaddress.ip_address(LOCALHOST), PORT, CLIENT_ID) as api_handler: 
         not_found = []
         for instrument in instruments:
