@@ -216,7 +216,9 @@ class Contract:
     async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp):
         try:
             symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
-            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end + pd.Timedelta(days=1))
+            # Add one day to the end as the stream request is end exclusive
+            end += pd.Timedelta(days=1)
+            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end) 
             new_definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, new_data)
             
             # Combine new data with existing data and skip duplicates if they exist based on index
@@ -713,12 +715,6 @@ class Contract:
             - instrument_ids: pd.Series - The daily individual instrument_id
             - definitions: pd.Series - The definitions of our instruments which include both our expirations as well as matching instrument_id to our data series.
         """
-
-        # Assert all instrument_ids in data are within definitions
-        assert (
-            data["instrument_id"].isin(definitions["instrument_id"]).all(bool_only=True)
-        )
-
         # We need to index our definitons by the instrument_id
         exp_df: pd.DataFrame = (
             definitions.reset_index()[["expiration", "instrument_id"]]
@@ -727,7 +723,6 @@ class Contract:
         )
 
         exp_df = exp_df[~exp_df.index.duplicated(keep="first")]
-        assert exp_df.index.is_unique
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
         data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp
