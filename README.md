@@ -1,18 +1,4 @@
 # Algo-Trade
-
-## IBAPI Downtimes (from [IBKR](https://www.interactivebrokers.com/en/?f=%2Fen%2Fsoftware%2FsystemStatus.php)):
-| Server Reset Times  | North America                | Europe | Asia |
-|---------------------|:----------------------------:|:------:|:----:|
-| Saturday - Thursday | 23:45 - 00:45 ET<sup>1</sup> |  ...   |  ... |
-| Friday              | 23:00 - 03:00 ET<sup>2</sup> |  ...   |  ... |
-
-
-> Disclosures: 
-> 1. The reset period describes the duration during which your account may be unavailable for a few seconds. It does not indicate that the entire system will be unavailable for the full reset period. During a reset period, there may be an interruption in the ability to log in or manage orders. Existing orders (native types) will operate normally although execution reports and simulated orders will be delayed until the reset is complete.
-> 2. During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
-
----
-
 ![workflow](https://github.com/AlgoGators/algo_trade/actions/workflows/tests.yml/badge.svg)
 
 ## Poetry
