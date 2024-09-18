@@ -13,3 +13,7 @@ class ErrorCodes(IntEnum):
     MARKET_DATA_FARM_CONNECTED_INACTIVE = 2108
     CROSS_SIDE_WARNING = 2137 #
     SEC_DEF_DATA_FARM_CONNECTED = 2158
+    NO_SECURITY_FOUND = 200
+
+class NoSecurityFound(Exception):
+    pass
