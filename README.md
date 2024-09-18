@@ -6,7 +6,7 @@
 The easiest way to install Poetry is through Pipx, which is likely not already installed.
 
 #### Windows:
-```
+```cmd
 // Installing pip x
 >> py -m pip install --user pipx
 
@@ -14,7 +14,7 @@ The easiest way to install Poetry is through Pipx, which is likely not already i
 WARNING: The script pipx.exe is installed in `<USER folder>\AppData\Roaming\Python\Python3x\Scripts` which is not on PATH
 
 // Run the following:
->> cd <USER folder>\AppData\Roaming\Python\Python3x\Scripts
+>> cd userFolder\AppData\Roaming\Python\Python3x\Scripts
 >> .\pipx.exe ensurepath
 
 // Refresh terminal
@@ -25,26 +25,26 @@ WARNING: The script pipx.exe is installed in `<USER folder>\AppData\Roaming\Pyth
 
 or 
 
-```
+```cmd
 >> python -m pip install --user pipx
 >> python -m pipx ensurepath
 ```
 
 #### Linux
-```
+```cmd
 >> python3 -m pip install --user pipx
 >> python3 -m pipx ensurepath
 ```
 
 #### macOS
-```
+```cmd
 >> python3 -m pip install --user pipx
 >> python3 -m pipx ensurepath
 ```
 
 ---
 ### Using Poetry
-```
+```cmd
 // Installing dependencies
 >> poetry install
 
@@ -55,24 +55,12 @@ or
 >> poetry run algo-trade
 ```
 
-## API Config File:
-Ensure config/config.toml exists with the following values:
+## Configuration:
+
+Create a .env file with the following line of code, replacing `...` with the proper key:
+```.env
+DATABENTO_API_KEY=...
 ```
-[server]
-ip = ""
-user = ""
-password = ""
-
-[database]
-demo = ""
-db_trend = ""
-db_carry = ""
-db_test = ""
-user = ""
-password = ""
-port = ""
-
-[databento]
 api_historical = ""
 api_live = ""
 ```
