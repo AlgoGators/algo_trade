@@ -75,7 +75,7 @@ class Instrument():
     def __init__(
             self,
             symbol: str,
-            dataset: str,
+            dataset: DATASET,
             currency : str,
             exchange : str,
             security_type: Optional['SecurityType'] = None,
@@ -146,7 +146,7 @@ class Instrument():
         return self._exchange
 
     @property
-    def dataset(self) -> str:
+    def dataset(self) -> DATASET:
         """
         Returns the dataset of the instrument
 
@@ -262,10 +262,10 @@ class Instrument():
         contract_type: ContractType,
     ):
         # Process and store the fetched data
-        if roll_type == RollType.CALENDAR and contract_type == ContractType.FRONT:
+        if contract_type == ContractType.FRONT:
             self.front = contract
             self.price = contract.backadjusted
-        elif roll_type == RollType.CALENDAR and contract_type == ContractType.BACK:
+        elif contract_type == ContractType.BACK:
             self.back = contract
         # Add more conditions if needed for other roll types and contract types
 
@@ -289,7 +289,7 @@ class Future(Instrument):
     """
 
     security_type = SecurityType.FUTURE
-    def __init__(self, symbol: str, dataset: str, currency : str, exchange : str, multiplier: float = 1.0):
+    def __init__(self, symbol: str, dataset: DATASET, currency : str, exchange : str, multiplier: float = 1.0):
         super().__init__(
             symbol,
             dataset,
@@ -444,7 +444,7 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=schema,
         )
 
@@ -474,7 +474,7 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=Agg.DAILY,
             catalog=CATALOG.NORGATE,
         )
@@ -509,17 +509,23 @@ class Future(Instrument):
         """
         contract: Contract = Contract(
             instrument=self.symbol,
-            dataset=DATASET.from_str(self.dataset),
+            dataset=self.dataset,
             schema=schema,
         )
 
         if name is None:
             name = f"{contract.get_instrument()}-{roll_type}-{contract_type}"
-
+        # Add a sleep to the task to avoid rate limiting
+        await asyncio.sleep(3)
         try:
             await contract.construct_async(
                 client=self.client, roll_type=roll_type, contract_type=contract_type
             )
+            if contract_type == ContractType.FRONT:
+                self.front = contract
+                self.price = contract.backadjusted
+            elif contract_type == ContractType.BACK:
+                self.back = contract
             self._process_and_store_data(
                 contract, schema, roll_type, contract_type
             )
@@ -553,7 +559,7 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
     return [
         Instrument(
             symbol=row.loc['dataSymbol'],
-            dataset=row.loc['dataSet'],
+            dataset=DATASET.from_str(row.loc['dataSet']),
             currency=row.loc['currency'],
             exchange=row.loc['exchange'],
             security_type=SecurityType.from_str(row.loc['instrumentType']),
@@ -562,6 +568,30 @@ def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
         )
         for n, row in instrument_df.iterrows()
     ]
+
+async def fetch_futures_data(futures : list[Future], rate: int = 5) -> None:
+    """
+    Fetches the data for the futures instruments asynchronously
+
+    The fetch_futures_data function fetches the data for the futures instruments asynchronously using asyncio and a semaphore to limit the number of concurrent requests.
+
+    Args:
+    futures: list[Future] - The list of future instruments to fetch data for
+    rate: int - The rate limit for the number of concurrent requests
+
+    Returns:
+    None
+    """
+    semaphore = asyncio.Semaphore(rate)
+    async def fetch_with_semaphore(future: Future):
+        async with semaphore:
+            await future.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
+    tasks = []
+    for future in futures:
+        task = asyncio.create_task(fetch_with_semaphore(future))
+        tasks.append(task)
+
+    await asyncio.gather(*tasks)
 
 async def main():
     ex: str = "CME"

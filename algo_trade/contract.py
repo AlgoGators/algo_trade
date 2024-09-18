@@ -28,13 +28,13 @@ class ASSET(StrEnum):
 
 # TODO: Add more datasets
 class DATASET(StrEnum):
-    CME = "GLBX.MDP3"
+    GLOBEX = "GLBX.MDP3"
 
     @classmethod
     def from_str(cls, value: str) -> "DATASET":
         """
         Converts a string to a DATASET enum based on the value to the Enum name and not value
-        so "CME" -> DATASET.CME
+        so "GLOBEX" -> DATASET.GLOBEX
 
         Args:
             - value: str - The value to convert to a DATASET enum
@@ -183,7 +183,7 @@ class Contract:
 
         range: dict[str, str] = await self._get_dataset_range_async(client)
         # Shift the data and definitions end back by one day to account for historical vs intraday data availability
-        start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
+        start: pd.Timestamp = pd.Timestamp(range["start"])
         end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
 
         if data_path.exists() and definitions_path.exists():
@@ -203,11 +203,12 @@ class Contract:
             print(f"Data and Definitions not present for {self.instrument}")
             await self._fetch_initial_data_async(client, roll_type, contract_type, start, end)
 
+        # Save the new data and definitions to the catalog
+        self._save_data(data_path, definitions_path)
+
         # Set the timestamp, open, high, low, close, and volume
         self._set_attributes()
 
-        # Save the new data and definitions to the catalog
-        self._save_data(data_path, definitions_path)
 
     async def _get_dataset_range_async(self, client: db.Historical) -> dict[str, str]:
         return await asyncio.to_thread(client.metadata.get_dataset_range, dataset=self.dataset)
@@ -215,7 +216,9 @@ class Contract:
     async def _update_data_async(self, client: db.Historical, roll_type: RollType, contract_type: ContractType, data_end: pd.Timestamp, end: pd.Timestamp):
         try:
             symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
-            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end)
+            # Add one day to the end as the stream request is end exclusive
+            end += pd.Timedelta(days=1)
+            new_data: db.DBNStore = await self._fetch_databento_data_async(client, symbols, data_end, end) 
             new_definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, new_data)
             
             # Combine new data with existing data and skip duplicates if they exist based on index
@@ -255,7 +258,10 @@ class Contract:
         self.close = pd.Series(self.data["close"])
         self.volume = pd.Series(self.data["volume"])
         self.instrument_id = pd.Series(self.definitions["instrument_id"])
-        self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
+        try:
+            self.expiration = self._set_exp(self.data.copy(), self.definitions.copy())
+        except Exception as e:
+            print(f"Error within converting expiration into daily data: {e}")
 
     def _save_data(self, data_path: Path, definitions_path: Path):
         data_path.parent.mkdir(parents=True, exist_ok=True)
@@ -709,19 +715,14 @@ class Contract:
             - instrument_ids: pd.Series - The daily individual instrument_id
             - definitions: pd.Series - The definitions of our instruments which include both our expirations as well as matching instrument_id to our data series.
         """
-
-        # Assert all instrument_ids in data are within definitions
-        assert (
-            data["instrument_id"].isin(definitions["instrument_id"]).all(bool_only=True)
-        )
-
         # We need to index our definitons by the instrument_id
         exp_df: pd.DataFrame = (
             definitions.reset_index()[["expiration", "instrument_id"]]
-            .set_index("instrument_id")
             .drop_duplicates()
+            .set_index("instrument_id")
         )
 
+        exp_df = exp_df[~exp_df.index.duplicated(keep="first")]
         # We then need to map our instrument_ids to the correct expiration date using the definitions while preserving the data frame index
         data["expiration"] = data["instrument_id"].map(exp_df["expiration"])
         # Finally we need to set the index of our instrument ids to the same index as our data using the timestamp

@@ -30,7 +30,7 @@ def contract() -> Contract:
     """
     Initialize a Contract object for testing.
     """
-    contract: Contract = Contract('ES', dataset=DATASET.CME, schema=Agg.DAILY, catalog=CATALOG.DATABENTO)
+    contract: Contract = Contract('ES', dataset=DATASET.GLOBEX, schema=Agg.DAILY, catalog=CATALOG.DATABENTO)
     client: dbn.Historical = dbn.Historical()
     contract.construct(client=client, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
     return contract
@@ -39,7 +39,7 @@ def contract() -> Contract:
 # Test the initialization of a Contract object
 def test_contract_init(contract: Contract):
     assert contract.instrument == 'ES'
-    assert contract.dataset == DATASET.CME
+    assert contract.dataset == DATASET.GLOBEX
     assert contract.schema == Agg.DAILY
     assert contract.catalog == CATALOG.DATABENTO
 
