@@ -19,7 +19,7 @@ from algo_trade.ib_utils._contract import Contract
 from algo_trade.ib_utils._config import TIMEOUT, WAIT_FOR_TRADES, WAIT_FOR_TRADES_TIMEOUT
 from algo_trade.ib_utils._type_hints import ContractDetails
 from algo_trade.ib_utils.account import Account, Position, Trade
-from algo_trade.ib_utils.error_codes import ErrorCodes
+from algo_trade.ib_utils.error_codes import ErrorCodes, NoSecurityFound
 
 logging.basicConfig(level=logging.INFO)
 
@@ -153,6 +153,9 @@ class IBAPI(EClient, EWrapper):
                 self.disconnect()
                 time.sleep(5)  # Wait for 5 seconds before attempting to reconnect
                 self.connect()
+            case ErrorCodes.NO_SECURITY_FOUND:
+                with self.condition:
+                    self.condition.notify()
             case _:
                 raise NotImplementedError(f"Error Code: {errorCode} | Error Message: {errorString}")
 
@@ -304,14 +307,18 @@ class APIHandler:
 
     def get_contract_details(
             self,
-            contract : Contract) -> dict[str, Contract]:
+            contract : Contract,
+            timeout : int = TIMEOUT) -> dict[str, Contract]:
         with self.app.condition:
             self.app.contract_details = {} # Clear contracts dictionary
             self.app.reqContractDetails(0, contract)
-            timed_out = not self.app.condition.wait(TIMEOUT)
+            timed_out = not self.app.condition.wait(timeout)
         if timed_out:
             raise TimeoutError("Failed to retrieve contract details")
         contracts : dict[str, Contract] = {conId : contractDetails.contract for conId, contractDetails in self.app.contract_details.items()}
+
+        if not contracts:
+            raise NoSecurityFound("No security definition has been found for the request")
 
         return contracts
 
