@@ -20,9 +20,9 @@ load_dotenv()
 class SecurityType(Enum):
     FUTURE = ('Future', 'FUT')
 
-    def __init__(self, obj_name, string):
-        self._obj_name = obj_name
-        self.string = string
+    def __init__(self, obj_name : str, string : str):
+        self._obj_name : str = obj_name
+        self.string : str = string
 
     @property
     def obj(self):
