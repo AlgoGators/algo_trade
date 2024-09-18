@@ -12,7 +12,7 @@ Organization: AlgoGators Investment Fund
 """
 
 from algo_trade.instrument import Future
-from algo_trade.contract import Agg, RollType, ContractType, CATALOG
+from algo_trade.contract import Agg, RollType, ContractType, CATALOG, DATASET
 
 import pytest
 import pandas as pd
@@ -30,13 +30,13 @@ def future() -> Future:
     """
     Initialize a Future object for testing.
     """
-    future: Future = Future("ES", "CME", multiplier=5.0, exchange="CME", currency="USD")
+    future: Future = Future("ES", DATASET.GLOBEX, multiplier=5.0, exchange="CME", currency="USD")
     future.add_data(schema=Agg.DAILY, roll_type=RollType.CALENDAR, contract_type=ContractType.FRONT)
     return future
 
 def test_future_init(future: Future):
     assert future.symbol == "ES"
-    assert future.dataset == "CME"
+    assert future.dataset == DATASET.GLOBEX
     assert future.multiplier == 5.0
     assert future.contracts != {}
     assert future.front is not None

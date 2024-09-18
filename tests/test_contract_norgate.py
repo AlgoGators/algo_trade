@@ -16,7 +16,7 @@ def contract() -> Contract:
         Contract: A contract object.
     """
     contract: Contract = Contract(
-        instrument="ES", dataset=DATASET.CME, schema=Agg.DAILY, catalog=CATALOG.NORGATE
+        instrument="ES", dataset=DATASET.GLOBEX, schema=Agg.DAILY, catalog=CATALOG.NORGATE
     )
     contract.construct_norgate()
     return contract
@@ -32,7 +32,7 @@ def test_contract_norgate(contract: Contract):
 
     # Check for proper initialization
     assert contract.instrument == "ES"
-    assert contract.dataset == DATASET.CME
+    assert contract.dataset == DATASET.GLOBEX
     assert contract.schema == Agg.DAILY
     assert contract.catalog == CATALOG.NORGATE
 
