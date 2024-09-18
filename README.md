@@ -61,6 +61,3 @@ Create a .env file with the following line of code, replacing `...` with the pro
 ```.env
 DATABENTO_API_KEY=...
 ```
-api_historical = ""
-api_live = ""
-```
