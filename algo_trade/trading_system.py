@@ -132,7 +132,7 @@ class TradingSystem(ABC, Generic[T]):
                 Contract(
                     symbol=key_pairs[column],
                     multiplier=self.multipliers[column].iloc[0],
-                    exchange=self.exchanges[column].iloc[0],
+                    exchange=str(Decimal(self.exchanges[column].iloc[0])), #? Decimal ensures that the string is in IBKR format
                     currency=self.currencies[column].iloc[0],
                     secType=self.security_types[column].iloc[0].string
                 ),
