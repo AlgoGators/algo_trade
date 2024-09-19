@@ -16,6 +16,7 @@ from algo_trade.trading_system import TradingSystem
 from algo_trade.ib_utils.account import Account
 from algo_trade.ib_utils._enums import AdaptiveOrderPriority
 from algo_trade.update_account import update_account
+from algo_trade.ib_utils.validate_instruments import validate_instruments
 from algo_trade.instrument import Future, initialize_instruments, SecurityType, fetch_futures_data
 from algo_trade.pnl import PnL
 from algo_trade.strategy import Strategy, FutureDataFetcher
@@ -108,6 +109,9 @@ def main() -> None:
 
     # Initialize the instruments
     futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
+
+    # Validate Contracts
+    validate_instruments(futures)
 
     # The rate limit initializes a semaphore to limit the number of concurrent requests... this can be adjusted to find an optimal rate according to the Databento API Documentation
     rate_limit : int = 5
