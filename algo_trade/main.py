@@ -1,31 +1,40 @@
 """
 Main module for the algo_trade package.
 
-The main module for the algo_trade package. This module contains the main function that is executed when the package is run as a script.
+Main module for the algo_trade package. Executed when the package is run as a script.
 
-The function includes the collection of all the instruments, the creation of the a portfolio holding our strategy, and the optimization
+Includes the collection of instruments, creation of the portfolio, and its optimization
 """
 
-import pandas as pd # type: ignore
-from pathlib import Path
-from functools import partial
 import asyncio
+from functools import partial
+from pathlib import Path
+
+import pandas as pd # type: ignore
+
 from algo_trade.dyn_opt import dyn_opt
-from algo_trade.rules import equal_weight, capital_scaling, risk_parity, trend_signals, IDM
-from algo_trade.trading_system import TradingSystem
-from algo_trade.ib_utils.account import Account
-from algo_trade.ib_utils._enums import AdaptiveOrderPriority
-from algo_trade.update_account import update_account
-from algo_trade.ib_utils.validate_instruments import validate_instruments
-from algo_trade.instrument import Future, initialize_instruments, SecurityType, fetch_futures_data
-from algo_trade.pnl import PnL
-from algo_trade.strategy import Strategy, FutureDataFetcher
-from algo_trade.risk_measures import RiskMeasure, CRV
+from algo_trade.instrument import Future, SecurityType, initialize_instruments, fetch_futures_data
 from algo_trade.risk_limits import portfolio_multiplier, position_limit
+from algo_trade.risk_measures import CRV, RiskMeasure
+from algo_trade.rules import capital_scaling, equal_weight, IDM, risk_parity, trend_signals
+from algo_trade.strategy import FutureDataFetcher, Strategy
+from algo_trade.trading_system import TradingSystem
+from algo_trade.update_account import update_account
+from algo_trade.ib_utils.account import Account
+from algo_trade.ib_utils.validate_instruments import validate_instruments
+from algo_trade.ib_utils._enums import AdaptiveOrderPriority
 
 class TrendFollowing(Strategy[Future]):
-    def __init__(self, instruments: list[Future], risk_object: RiskMeasure, capital: float):
-        super().__init__(capital=capital)
+    """Trend Following Strategy"""
+
+    def __init__(
+            self,
+            instruments: list[Future],
+            risk_object: RiskMeasure,
+            capital: float
+        ) -> None:
+
+        super().__init__()
         self.instruments: list[Future] = instruments
         self.risk_object = risk_object
         self.rules = [
@@ -38,18 +47,24 @@ class TrendFollowing(Strategy[Future]):
         self.scalars = []
         self.fetch_data()  # Fetch the data for the instruments
 
-    def fetch_data(self) -> None:
+    async def fetch_data(self) -> None:
         """
-        The Fetch data method for the Trend Following strategy is requires the following instrument specific data:
+        fetch_data method requires the following instrument data:
         1. Prices(Open, High, Low, Close, Volume)
         2. Backadjusted Prices (Close)
         """
         # Load the front calendar contract data with a daily aggregation
         FutureDataFetcher.fetch_front(self.instruments)
 
-### Example TradingSystem
 class Trend(TradingSystem):
-    def __init__(self, instruments : list[Future], risk_target : float, capital : float):
+    """Trend Trading System, reliant on TrendFollowing strategy"""
+    def __init__(
+            self,
+            instruments : list[Future],
+            risk_target : float,
+            capital : float
+        ) -> None:
+
         super().__init__()
         self.risk_object = CRV(
             risk_target=risk_target,
@@ -67,8 +82,8 @@ class Trend(TradingSystem):
                 dyn_opt,
                 instrument_weights=equal_weight(instruments=instruments),
                 cost_per_contract=3.0,
-                asymmetric_risk_buffer=0.05, 
-                cost_penalty_scalar=10, 
+                asymmetric_risk_buffer=0.05,
+                cost_penalty_scalar=10,
                 position_limit_fn=position_limit(
                     max_leverage_ratio=2.0,
                     minimum_volume=100,
@@ -88,8 +103,8 @@ def main() -> None:
     """
     Main function for the algo_trade package
 
-    The main function constructs our instruments, creates a portfolio, finds our positions, and optimizes our portfolio.
-    The main function is the entry point for the algo_trade package and is executed when the package is run as a script.
+    Constructs instruments, creates a portfolio, finds positions, and optimizes portfolio.
+    Entry point for the algo_trade package and is executed when the package is run as a script.
     Args:
     None
 
@@ -108,12 +123,16 @@ def main() -> None:
     instruments_dataframe.dropna(subset=['dataSet'], inplace=True)
 
     # Initialize the instruments
-    futures : list[Future] = [future for future in initialize_instruments(instruments_dataframe) if future.security_type == SecurityType.FUTURE]
+    futures : list[Future] = [
+        future for future in initialize_instruments(instruments_dataframe)
+        if future.security_type == SecurityType.FUTURE
+    ]
 
     # Validate Contracts
     validate_instruments(futures)
 
-    # The rate limit initializes a semaphore to limit the number of concurrent requests... this can be adjusted to find an optimal rate according to the Databento API Documentation
+    # The rate limit initializes a semaphore to limit the number of concurrent requests...
+    # This can be adjusted to find an optimal rate according to the Databento API Documentation
     rate_limit : int = 5
     asyncio.run(fetch_futures_data(futures, rate=rate_limit))
 
