@@ -223,9 +223,9 @@ class Contract:
             
             # Combine new data with existing data and skip duplicates if they exist based on index
             self.data = pd.concat([self.data, new_data.to_df()])
-            self.data = self.data[~self.data.index.duplicated(keep="last")] # drops duplicates, choosing the latter one to keep
-
-            self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates()
+            self.data = self.data[~self.data.index.duplicated(keep="last")]
+            self.definitions = pd.concat([self.definitions, new_definitions.to_df()])
+            self.definitions = self.definitions[~self.definitions.index.duplicated(keep="last")]
         except Exception as e:
             print(f"Error: {e}")
 
@@ -857,10 +857,12 @@ class Contract:
                     # Combine new data with existing data and skip duplicates if they exist based on index
                     self.data = pd.concat(
                         [self.data, new_data.to_df()]
-                    ).drop_duplicates()
+                    )
+                    self.data = self.data[~self.data.index.duplicated(keep="last")]
                     self.definitions = pd.concat(
                         [self.definitions, new_definitions.to_df()]
-                    ).drop_duplicates()
+                    )
+                    self.definitions = self.definitions[~self.definitions.index.duplicated(keep="last")]
                 except Exception as e:
                     print(f"Error: {e}")
 
