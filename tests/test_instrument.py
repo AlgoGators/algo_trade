@@ -106,7 +106,7 @@ class TestFuture(unittest.TestCase):
         """Test add_norgate_data adds contract and sets front."""
         #@ TODO
 
-    def test_add_data_async(self, MockContract, _) -> None: # type: ignore
+    def test_add_data_async(self) -> None:
         """Test add_data_async adds contract and sets front asynchronously."""
         #@ TODO
 

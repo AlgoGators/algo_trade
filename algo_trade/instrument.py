@@ -618,11 +618,4 @@ async def main() -> None:
         print(fut.price)
 
 if __name__ == "__main__":
-    x = Contract(
-        instrument="CL",
-        dataset=DATASET.GLOBEX,
-        schema=Agg.DAILY,
-        catalog=CATALOG.NORGATE,
-    )
-    print(isinstance(x, Contract))
-    # asyncio.run(main())
+    asyncio.run(main())
