@@ -1,23 +1,41 @@
-import os
-from typing import Tuple, Optional
+"""
+This module defines classes and functions for handling financial instruments, 
+specifically focusing on futures contracts. It includes the following components:
+Classes:
+- SecurityType: An enumeration for different types of securities.
+- Instrument: A base class for financial instruments, providing attributes and methods 
+    for handling common properties like symbol, dataset, currency, and exchange.
+- Future: A subclass of Instrument, representing futures contracts. It includes additional 
+    attributes and methods for handling multiple contracts, front and back month contracts, 
+    and price data.
+Functions:
+- initialize_instruments: Initializes a list of Instrument objects from a pandas DataFrame.
+- fetch_futures_data: Asynchronously fetches data for a list of Future objects, with rate 
+    limiting to avoid excessive concurrent requests.
+- main: An asynchronous main function that initializes a list of Future objects, fetches 
+    their data, and prints their prices.
+The module also utilizes the databento library for historical data fetching and the dotenv 
+library for loading environment variables.
+"""
+
 import asyncio
-import databento as db
-import pandas as pd
 from enum import Enum
+import os
+from typing import Tuple, Optional, Type, cast
+
 from dotenv import load_dotenv
-from algo_trade.contract import (
-    ASSET,
-    DATASET,
-    CATALOG,
-    Agg,
-    RollType,
-    Contract,
-    ContractType,
-)
+import databento as db
+import pandas as pd # type: ignore
+
+from algo_trade.contract import DATASET, CATALOG, Agg, RollType, Contract, ContractType
 
 load_dotenv()
 
 class SecurityType(Enum):
+    """
+    SecurityType enum to represent the different types of securities
+    """
+
     FUTURE = ('Future', 'FUT')
 
     def __init__(self, obj_name : str, string : str):
@@ -25,10 +43,13 @@ class SecurityType(Enum):
         self.string : str = string
 
     @property
-    def obj(self):
-        # Dynamically resolve the object class when accessed
+    def obj(self) -> Type['Instrument']:
+        """Dynamically resolve the object class when accessed"""
         if isinstance(self._obj_name, str):
-            return globals()[self._obj_name]
+            instrument_class = globals()[self._obj_name]
+            if not issubclass(instrument_class, Instrument):
+                raise ValueError(f"{self._obj_name} is not a valid Instrument class")
+            return cast(Type[Instrument], instrument_class)
         return self._obj_name
 
     @classmethod
@@ -45,13 +66,14 @@ class SecurityType(Enum):
         """
         try:
             return cls[value.upper()]
-        except ValueError:
+        except KeyError as exc:
             # If exact match fails, look for a case-insensitive match
             for member in cls:
                 if member.name.lower() == value.lower():
                     return member
 
-            raise ValueError(f"{value} is not a valid {cls.__name__}")
+            # reraise the original exception if no match was found
+            raise KeyError(f"{value} is not a valid {cls.__name__}") from exc
 
 class Instrument():
     """
@@ -131,7 +153,7 @@ class Instrument():
         str: The currency the instrument is denominated in
         """
         return self._currency
-    
+
     @property
     def exchange(self) -> str:
         """
@@ -221,6 +243,21 @@ class Instrument():
         """
         raise NotImplementedError()
 
+    @price.setter
+    def price(self, value: pd.Series) -> None:
+        """
+        Sets the prices of the instrument
+
+        Args:
+        value: pd.Series - The prices of the instrument
+
+        Returns:
+        None
+        """
+        if not isinstance(value, pd.Series):
+            raise ValueError("Price must be a pd.Series object")
+        self._price = value
+
     @property
     def percent_returns(self) -> pd.Series:
         """
@@ -234,46 +271,11 @@ class Instrument():
         """
         raise NotImplementedError()
 
-    async def add_data(
-        self, agg: Agg, roll_type: RollType, contract_type: ContractType
-    ) -> None:
-        """
-        Asynchronously add data to the instrument.
-        """
-        client = db.Historical(key=os.getenv("DATABENTO_KEY"))
-
-        contract = Contract(
-            instrument=self.symbol,
-            dataset=self.dataset,
-            schema=agg,
-        )
-
-        try:
-            await contract.construct_async(client, roll_type, contract_type)
-            self._process_and_store_data(contract, agg, roll_type, contract_type)
-        except Exception as e:
-            print(f"Error fetching data for {self.symbol}: {e}")
-
-    def _process_and_store_data(
-        self,
-        contract: Contract,
-        agg: Agg,
-        roll_type: RollType,
-        contract_type: ContractType,
-    ):
-        # Process and store the fetched data
-        if contract_type == ContractType.FRONT:
-            self.front = contract
-            self.price = contract.backadjusted
-        elif contract_type == ContractType.BACK:
-            self.back = contract
-        # Add more conditions if needed for other roll types and contract types
-
-
 class Future(Instrument):
     """
-    Future class is a representation of a future instrument within the financial markets
-    Within future contructs we can have multiple contracts that represent the same underlying asset so we need to be able to handle multiple contracts like a front month and back month contract
+    Future class is a representation of a future instrument
+    Within future we can have multiple contracts representing the same underlying asset
+    So we need to be able to handle multiple contracts like a front month and back month contract
     To implement this we will have a list of contracts that the future instrument will handle
 
     Attributes:
@@ -282,28 +284,30 @@ class Future(Instrument):
     contracts: dict[str, Contract] - The contracts of the future instrument
     front: Contract - The front month contract of the future instrument
     back: Contract - The back month contract of the future instrument
-
-
-    Methods:
-    -   add_contract(contract: Contract, contract_type: ContractType) -> None - Adds a contract to the future instrument
     """
 
     security_type = SecurityType.FUTURE
-    def __init__(self, symbol: str, dataset: DATASET, currency : str, exchange : str, multiplier: float = 1.0):
+    def __init__(
+            self,
+            symbol : str,
+            dataset : DATASET,
+            currency : str,
+            exchange : str,
+            multiplier : float,
+            ib_symbol : str | None = None
+        ) -> None:
+
         super().__init__(
-            symbol,
-            dataset,
-            currency,
-            exchange,
+            symbol=symbol,
+            dataset=dataset,
+            currency=currency,
+            exchange=exchange,
             security_type=SecurityType.FUTURE,
-            multiplier=multiplier
+            multiplier=multiplier,
+            ib_symbol=ib_symbol
         )
 
-        self.multiplier: float = multiplier
-        self.contracts: dict[str, Contract] = {}
-        self._front: Contract
-        self._back: Contract
-        self._price: pd.Series
+        # self.contracts: dict[str, Contract] = {}
 
     @property
     def front(self) -> Contract:
@@ -318,6 +322,7 @@ class Future(Instrument):
         """
         if not hasattr(self, "_front"):
             raise ValueError("Front is empty")
+
         return self._front
 
     @front.setter
@@ -331,29 +336,12 @@ class Future(Instrument):
         Returns:
         None
         """
+        print(type(Contract))
+        print(type(value))
+        if not isinstance(value, Contract):
+            raise ValueError("Front must be a Contract object")
+
         self._front = value
-
-    @front.deleter
-    def front(self) -> None:
-        """
-        Deletes the front month contract of the future instrument
-
-        Args:
-        None
-
-        Returns:
-        None
-        """
-        del self._front
-
-    front.__doc__ = """
-    The front month contract of the future instrument
-
-    Args:
-        
-    Returns:
-        pd.Series: The front month contract of the future instrument
-    """
 
     @property
     def price(self) -> pd.Series:
@@ -366,8 +354,9 @@ class Future(Instrument):
         Returns:
         pd.Series: The price of the future instrument
         """
-        if self._price.empty:
+        if not hasattr(self, "_price"):
             raise ValueError("Price is empty")
+
         return self._price
 
     @price.setter
@@ -381,28 +370,45 @@ class Future(Instrument):
         Returns:
         None
         """
+        if not isinstance(value, pd.Series):
+            raise ValueError("Price must be a pd.Series object")
+
         self._price = value
 
-    @price.deleter
-    def price(self) -> None:
+    @property
+    def back(self) -> Contract:
         """
-        Deletes the price of the future instrument
+        Returns the back month contract of the future instrument
 
         Args:
         None
 
         Returns:
+        Bar: The back month contract of the future instrument
+        """
+        if not hasattr(self, "_back"):
+            raise ValueError("Back is empty")
+
+        return self._back
+
+    @back.setter
+    def back(self, value: Contract) -> None:
+        """
+        Sets the back month contract of the future instrument
+
+        Args:
+        value: Bar - The back month contract of the future instrument
+
+        Returns:
         None
         """
-        del self._price
+        if not isinstance(value, Contract):
+            raise ValueError("Back must be a Contract object")
 
-    def __str__(self) -> str:
-        return f"Future: {self.symbol} - {self.dataset}"
+        self._back = value
 
-    def __repr__(self) -> str:
-        return f"Future: {self.symbol} - {self.dataset}"
-
-    def get_contracts(self) -> dict[str, Contract]:
+    @property
+    def contracts(self) -> dict[str, Contract]:
         """
         Returns the contracts of the future instrument
 
@@ -412,55 +418,32 @@ class Future(Instrument):
         Returns:
         dict[str, Contract]: The contracts of the future instrument
         """
-        if self.contracts == {}:
-            raise ValueError("No Contracts are present")
-        else:
-            return self.contracts
+        if not hasattr(self, "_contracts"):
+            self._contracts : dict[str, Contract] = {}
 
-    def get_front(self) -> Contract:
-        return self.front
-
-    def get_back(self) -> Contract:
-        return self.back
-
-    def add_data(
-        self,
-        schema: Agg,
-        roll_type: RollType,
-        contract_type: ContractType,
-        name: Optional[str] = None,
-    ) -> None:
+        return self._contracts
+    
+    @contracts.setter
+    def contracts(self, value: dict[str, Contract]) -> None:
         """
-        Adds data to the future instrument but first creates a bar object based on the schema
+        Sets the contracts of the future instrument
 
         Args:
-        schema: Schema.BAR - The schema of the bar
-        roll_type: RollType - The roll type of the bar
-        contract_type: ContractType - The contract type of the bar
-        name: Optional[str] - The name of the bar
+        value: dict[str, Contract] - The contracts of the future instrument
 
         Returns:
         None
         """
-        contract: Contract = Contract(
-            instrument=self.symbol,
-            dataset=self.dataset,
-            schema=schema,
-        )
+        if not isinstance(value, dict):
+            raise ValueError("Contracts must be a dict object")
 
-        if name is None:
-            name = f"{contract.get_instrument()}-{roll_type}-{contract_type}"
+        self._contracts = value
 
-        contract.construct(
-            client=self.client, roll_type=roll_type, contract_type=contract_type
-        )
+    def __str__(self) -> str:
+        return f"Future: {self.symbol} - {self.dataset}"
 
-        self.contracts[name] = contract
-        if contract_type == ContractType.FRONT:
-            self.front = contract
-            self.price = contract.backadjusted
-        elif contract_type == ContractType.BACK:
-            self.back = contract
+    def __repr__(self) -> str:
+        return f"Future: {self.symbol} - {self.dataset}"
 
     def add_norgate_data(self, name: Optional[str] = None) -> None:
         """
@@ -496,7 +479,8 @@ class Future(Instrument):
         name: Optional[str] = None,
     ) -> None:
         """
-        Asynchronously adds data to the future instrument but first creates a bar object based on the schema
+        Asynchronously adds data to the future instrument,
+        but first creates a bar object based on the schema
 
         Args:
         schema: Schema.BAR - The schema of the bar
@@ -526,11 +510,9 @@ class Future(Instrument):
                 self.price = contract.backadjusted
             elif contract_type == ContractType.BACK:
                 self.back = contract
-            self._process_and_store_data(
-                contract, schema, roll_type, contract_type
-            )
+
         except Exception as e:
-            print(f"Error fetching data for {self.symbol}: {e}")
+            raise e
 
     @property
     def percent_returns(self) -> pd.Series:
@@ -547,15 +529,18 @@ class Future(Instrument):
         if not hasattr(self, "_percent_change"):
             # * For equation see:
             # https://qoppac.blogspot.com/2023/02/percentage-or-price-differences-when.html
-            self._percent_change: pd.Series = (
+            self._percent_change = (
                 self.price - self.price.shift(1)
             ) / self.front.get_close().shift(1)
 
             self._percent_change.name = self.name
 
-        return self._percent_change    
+        return self._percent_change
 
 def initialize_instruments(instrument_df : pd.DataFrame) -> list[Instrument]:
+    """
+    Initializes a list of Instrument objects from a pandas DataFrame
+    """
     return [
         Instrument(
             symbol=row.loc['dataSymbol'],
@@ -573,7 +558,8 @@ async def fetch_futures_data(futures : list[Future], rate: int = 5) -> None:
     """
     Fetches the data for the futures instruments asynchronously
 
-    The fetch_futures_data function fetches the data for the futures instruments asynchronously using asyncio and a semaphore to limit the number of concurrent requests.
+    The fetch_futures_data function fetches the data for the futures instruments asynchronously 
+    using asyncio and a semaphore to limit the number of concurrent requests.
 
     Args:
     futures: list[Future] - The list of future instruments to fetch data for
@@ -583,7 +569,7 @@ async def fetch_futures_data(futures : list[Future], rate: int = 5) -> None:
     None
     """
     semaphore = asyncio.Semaphore(rate)
-    async def fetch_with_semaphore(future: Future):
+    async def fetch_with_semaphore(future: Future) -> None:
         async with semaphore:
             await future.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
     tasks = []
@@ -593,8 +579,11 @@ async def fetch_futures_data(futures : list[Future], rate: int = 5) -> None:
 
     await asyncio.gather(*tasks)
 
-async def main():
-    ex: str = "CME"
+async def main() -> None:
+    """
+    Main function for the instrument module
+    """
+    ex: DATASET = DATASET.GLOBEX
     bucket: list[str] = ["ES", "NQ", "RTY", "YM", "ZN"]
     multipliers: dict[str, float] = {
         "ES": 50,
@@ -608,17 +597,32 @@ async def main():
     tasks = []
 
     for sym in bucket:
-        fut: Future = Future(symbol=sym, dataset=ex, multiplier=multipliers[sym])
-        task = asyncio.create_task(fut.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT))
+        fut: Future = Future(
+            symbol=sym,
+            dataset=ex,
+            multiplier=multipliers[sym],
+            currency="USD",
+            exchange="GLOBEX"
+        )
+
+        task = asyncio.create_task(
+            fut.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT))
         tasks.append(task)
         futures.append(fut)
 
     await asyncio.gather(*tasks)
 
     print("Futures:")
-    
+
     for fut in futures:
         print(fut.price)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    x = Contract(
+        instrument="CL",
+        dataset=DATASET.GLOBEX,
+        schema=Agg.DAILY,
+        catalog=CATALOG.NORGATE,
+    )
+    print(isinstance(x, Contract))
+    # asyncio.run(main())
