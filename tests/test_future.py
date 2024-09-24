@@ -15,7 +15,7 @@ from algo_trade.instrument import Future
 from algo_trade.contract import Agg, RollType, ContractType, CATALOG, DATASET
 
 import pytest
-import pandas as pd
+import pandas as pd # type: ignore
 from dotenv import load_dotenv
 import os
 
