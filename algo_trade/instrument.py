@@ -510,7 +510,7 @@ class Future(Instrument):
                 self.back = contract
 
         except Exception as e:
-            raise e
+            raise Exception from e
 
     @property
     def percent_returns(self) -> pd.Series:

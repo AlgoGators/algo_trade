@@ -767,7 +767,7 @@ class Contract:
                 self.data = pd.read_csv(data_path_csv)
             except Exception as e:
                 print(f"Could not read data: {e}")
-                raise
+                raise Exception from e
 
             # Combine the Date and Time columns to create a timestamp
             self.data["timestamp"] = pd.to_datetime(
