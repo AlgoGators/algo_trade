@@ -59,7 +59,7 @@ class StandardDeviation(pd.DataFrame):
         factor : float = DAYS_IN_YEAR ** 0.5
 
         if inplace:
-            self *= factor # type: ignore
+            self *= factor
             self.__is_annualized = True
             return None
 
@@ -96,7 +96,7 @@ class Variance(pd.DataFrame):
         factor : float = DAYS_IN_YEAR
 
         if inplace:
-            self *= factor # type: ignore
+            self *= factor
             self.__is_annualized = True
             return None
 
@@ -104,7 +104,7 @@ class Variance(pd.DataFrame):
         new.annualize(inplace=True)
         return new
 
-    def __mul__(self, other : float | pd.DataFrame) -> 'Variance':
+    def __mul__(self, other : float | pd.DataFrame) -> pd.DataFrame:
         return super().__mul__(other) # type : ignore
 
     def to_standard_deviation(self) -> 'StandardDeviation':
@@ -190,10 +190,9 @@ class Covariance:
             instrument_names=instrument_names
         )
 
-    def iterate(self) -> Iterator[tuple[pd.Timestamp | None, np.ndarray | None]]:
+    def iterate(self) -> Iterator[tuple[pd.Timestamp, np.ndarray]]:
         if self._covariance_matrices is None or self._dates is None:
-            yield None, None
-            return
+            raise ValueError("Covariance object is empty")
 
         for n in range(self._covariance_matrices.shape[0]):
             yield self._dates[n], self._covariance_matrices[n]
@@ -249,7 +248,7 @@ class Covariance:
             self.parent = parent
 
         def __getitem__(self, key : str | datetime.datetime) -> pd.DataFrame:
-            if self.parent._covariance_matrices is None:
+            if self.parent._covariance_matrices is None or self.parent._dates is None:
                 raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
             return pd.DataFrame(
@@ -606,19 +605,10 @@ class GARCH(RiskMeasure[T]):
         self.fill = fill
 
         self.__var = Variance()
-        self.__cov = pd.DataFrame()
+        self.__cov = Covariance()
 
     def get_var(self) -> Variance:
         if not self.__var.empty:
-            return self.__var
-
-        if not self.__cov.empty:
-            for name in self.__cov.columns:
-                if '_' not in name:
-                    continue
-                if name.split('_')[0] != name.split('_')[1]:
-                    continue
-                self.__var[name.split('_')[0]] = self.__cov[name]
             return self.__var
 
         variance : pd.DataFrame = pd.DataFrame()
