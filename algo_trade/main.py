@@ -20,6 +20,7 @@ from algo_trade.rules import capital_scaling, equal_weight, IDM, risk_parity, tr
 from algo_trade.strategy import FutureDataFetcher, Strategy
 from algo_trade.trading_system import TradingSystem
 from algo_trade.update_account import update_account
+from algo_trade._utils import deprecated
 from algo_trade.ib_utils.account import Account
 from algo_trade.ib_utils.validate_instruments import validate_instruments
 from algo_trade.ib_utils._enums import AdaptiveOrderPriority
@@ -45,8 +46,8 @@ class TrendFollowing(Strategy[Future]):
             partial(IDM, risk_object=self.risk_object)
         ]
         self.scalars = []
-        self.fetch_data()  # Fetch the data for the instruments
 
+    @deprecated
     async def fetch_data(self) -> None:
         """
         fetch_data method requires the following instrument data:
