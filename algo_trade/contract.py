@@ -1,10 +1,11 @@
 import asyncio
+import os
 from enum import StrEnum
-import pandas as pd # type: ignore
-import databento as db
 from pathlib import Path
+
+import databento as db
 from dotenv import load_dotenv
-import asyncio
+import pandas as pd # type: ignore
 
 load_dotenv()
 
