@@ -336,8 +336,6 @@ class Future(Instrument):
         Returns:
         None
         """
-        print(type(Contract))
-        print(type(value))
         if not isinstance(value, Contract):
             raise ValueError("Front must be a Contract object")
 
