@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 import numpy as np
 import pandas as pd # type: ignore
@@ -8,6 +8,8 @@ from algo_trade.risk_measures import RiskMeasure, StandardDeviation
 from algo_trade._constants import DAYS_IN_YEAR
 
 Rule = Callable[[], pd.DataFrame]
+
+T = TypeVar('T', bound=Instrument)
 
 def capital_scaling(
         instruments: list[Future],
@@ -37,8 +39,11 @@ def capital_scaling(
     return capital_weighting
 
 def risk_parity(
-        risk_object: RiskMeasure[Instrument]
+        risk_object: RiskMeasure[T]
     ) -> pd.DataFrame:
+
+    if risk_object.tau is None:
+        raise ValueError("Risk Measure object must have a tau value")
 
     std : StandardDeviation = risk_object.get_var().to_standard_deviation()
     std.annualize(inplace=True)

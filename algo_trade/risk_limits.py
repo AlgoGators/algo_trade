@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.typing as npt
 import datetime
 import logging
 from typing import Callable
@@ -6,7 +7,14 @@ from typing import Callable
 from algo_trade.risk_logging import LogMessage, LogSubType, LogType
 from algo_trade._constants import DAYS_IN_YEAR
 
-def minimum_volatility(max_forecast_ratio : float, IDM : float, tau : float, maximum_leverage : float, instrument_weight : float | np.ndarray, annualized_volatility : float | np.ndarray) -> bool:
+def minimum_volatility(
+        max_forecast_ratio : float,
+        IDM : float,
+        tau : float,
+        maximum_leverage : float,
+        instrument_weight : float | npt.NDArray[np.float64],
+        annualized_volatility : float | npt.NDArray[np.float64]
+    ) -> bool | npt.NDArray[np.bool_]:
     """
     Returns True if the returns for a given instrument meets a minimum level of volatility; else, False
     (works for both single instruments and arrays)
@@ -33,9 +41,19 @@ def portfolio_multiplier(
         max_portfolio_leverage : float, 
         max_correlation_risk : float, 
         max_portfolio_volatility : float,
-        max_portfolio_jump_risk : float) -> Callable:
+        max_portfolio_jump_risk : float
+    ) -> Callable[
+        [
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            datetime.datetime
+        ],
+        np.float64]:
 
-    def max_leverage(positions_weighted : np.ndarray) -> float:
+    def max_leverage(
+            positions_weighted : npt.NDArray[np.float64]
+        ) -> np.float64:
         """
         Parameters:
         ---
@@ -48,7 +66,10 @@ def portfolio_multiplier(
             return np.float64(1)
         return min(max_portfolio_leverage / leverage, np.float64(1))
 
-    def correlation_risk(positions_weighted : np.ndarray, annualized_volatility : np.ndarray) -> float:
+    def correlation_risk(
+            positions_weighted : npt.NDArray[np.float64],
+            annualized_volatility : npt.NDArray[np.float64]
+        ) -> np.float64:
         """
         Parameters:
         ---
@@ -63,7 +84,10 @@ def portfolio_multiplier(
             return np.float64(1)
         return min(max_correlation_risk / correlation_risk, np.float64(1))
     
-    def portfolio_risk(positions_weighted : np.ndarray, covariance_matrix : np.ndarray) -> float:
+    def portfolio_risk(
+            positions_weighted : npt.NDArray[np.float64],
+            covariance_matrix : npt.NDArray[np.float64]
+        ) -> np.float64:
         """
         Parameters:
         ---
@@ -78,7 +102,10 @@ def portfolio_multiplier(
             return np.float64(1)
         return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
 
-    def jump_risk_multiplier(positions_weighted : np.ndarray, jump_covariance_matrix : np.ndarray) -> float:
+    def jump_risk_multiplier(
+            positions_weighted : npt.NDArray[np.float64],
+            jump_covariance_matrix : npt.NDArray[np.float64]
+        ) -> np.float64:
         """
         Parameters:
         ---
@@ -96,10 +123,11 @@ def portfolio_multiplier(
         return min(max_portfolio_jump_risk / jump_risk, np.float64(1))
 
     def fn(
-            positions_weighted : np.ndarray,
-            covariance_matrix : np.ndarray,
-            jump_covariance_matrix : np.ndarray,
-            date : datetime.datetime) -> float:
+            positions_weighted : npt.NDArray[np.float64],
+            covariance_matrix : npt.NDArray[np.float64],
+            jump_covariance_matrix : npt.NDArray[np.float64],
+            date : datetime.datetime
+        ) -> np.float64:
 
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
@@ -113,7 +141,12 @@ def portfolio_multiplier(
         for key, value in scalars.items():
             if value < 1:
                 portfolio_scalar = value
-                logging.warning(LogMessage(date, LogType.PORTFOLIO_MULTIPLIER, key, None, value))
+                logging.warning(
+                    LogMessage(
+                        DATE=date,
+                        TYPE=LogType.PORTFOLIO_MULTIPLIER,
+                        SUBTYPE=key,
+                        ADDITIONAL_INFO=str(value)))
 
         return portfolio_scalar
 
@@ -125,9 +158,23 @@ def position_limit(
         max_forecast_ratio : float,
         max_forecast_buffer : float,
         IDM : float,
-        tau : float) -> Callable:
+        tau : float
+    ) -> Callable[
+        [
+            float,
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            npt.NDArray[np.float64],
+            tuple[list[str], datetime.datetime]
+        ],
+        npt.NDArray[np.float64]]:
 
-    def max_leverage(capital : float, notional_exposure_per_contract : np.ndarray) -> np.ndarray:
+    def max_leverage(
+            capital : float,
+            notional_exposure_per_contract : npt.NDArray[np.float64]
+        ) -> npt.NDArray[np.float64]:
         """
         Parameters:
         ---
@@ -140,7 +187,12 @@ def position_limit(
         """
         return max_leverage_ratio * capital / notional_exposure_per_contract
 
-    def max_forecast(capital : float, notional_exposure_per_contract : np.ndarray, instrument_weight : np.ndarray, annualized_volatility : np.ndarray) -> np.ndarray:
+    def max_forecast(
+            capital : float,
+            notional_exposure_per_contract : npt.NDArray[np.float64],
+            instrument_weight : npt.NDArray[np.float64],
+            annualized_volatility : npt.NDArray[np.float64]
+        ) -> npt.NDArray[np.float64]:
         """
         Parameters:
         ---
@@ -162,7 +214,9 @@ def position_limit(
         """
         return (1 + max_forecast_buffer) * max_forecast_ratio * capital * IDM * instrument_weight * tau / notional_exposure_per_contract / annualized_volatility
 
-    def min_volume(volume : np.ndarray) -> np.ndarray:
+    def min_volume(
+            volume : npt.NDArray[np.float64]
+        ) -> npt.NDArray[np.float64]:
         """
         Parameters:
         ---
@@ -177,12 +231,13 @@ def position_limit(
 
     def fn(
             capital : float,
-            positions : np.ndarray,
-            notional_exposure_per_contract : np.ndarray,
-            instrument_weight : np.ndarray,
-            covariance_matrix : np.ndarray,
-            volume : np.ndarray,
-            additional_data : tuple[list[str], datetime.datetime]):
+            positions : npt.NDArray[np.float64],
+            notional_exposure_per_contract : npt.NDArray[np.float64],
+            instrument_weight : npt.NDArray[np.float64],
+            covariance_matrix : npt.NDArray[np.float64],
+            volume : npt.NDArray[np.float64],
+            additional_data : tuple[list[str], datetime.datetime]
+        ) -> npt.NDArray[np.float64]:
 
         annualized_volatility = np.diag(covariance_matrix) * DAYS_IN_YEAR ** 0.5
 
@@ -200,7 +255,7 @@ def position_limit(
                         LogType.POSITION_LIMIT,
                         LogSubType.MINIMUM_VOLUME,
                         additional_data[0][idx],
-                        np.float64(0)))
+                        str(0)))
 
         for position_at_maximum_leverage, position in zip(positions_at_maximum_leverage, positions):
             if abs(position) > position_at_maximum_leverage:
@@ -222,7 +277,8 @@ def position_limit(
                         additional_data[0][np.where(positions == position)[0][0]],
                         position_at_maximum_forecast))
      
-        sign_map = np.sign(positions)
+        sign_map : npt.NDArray[np.float64] = np.sign(positions)
+
         minimum_position = np.minimum(abs(positions), max_positions) * sign_map
 
         return minimum_position

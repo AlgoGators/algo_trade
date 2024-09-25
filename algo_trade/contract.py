@@ -4,7 +4,6 @@ import pandas as pd # type: ignore
 import databento as db
 from pathlib import Path
 from dotenv import load_dotenv
-import os
 import asyncio
 
 load_dotenv()
@@ -826,6 +825,8 @@ class Contract:
         start: pd.Timestamp = pd.Timestamp(range["start"]) - pd.Timedelta(days=1)
         end: pd.Timestamp = pd.Timestamp(range["end"]) - pd.Timedelta(days=1)
 
+        symbols : str
+
         if data_path.exists() and definitions_path.exists():
             try:
                 self.data = pd.read_parquet(data_path)
@@ -841,7 +842,7 @@ class Contract:
                 print(f"Data and Definitions are not up to date for {self.instrument}")
                 # Try to retrieve the new data and definitions but if failed then do not update
                 try:
-                    symbols: str = f"{self.instrument}.{roll_type}.{contract_type}"
+                    symbols = f"{self.instrument}.{roll_type}.{contract_type}"
                     new_data: db.DBNStore = client.timeseries.get_range(
                         dataset=self.dataset,
                         symbols=[symbols],

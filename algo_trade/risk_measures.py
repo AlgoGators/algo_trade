@@ -1,10 +1,10 @@
-"""Risk Measures Module, includes RiskMeasure class and subclasses and their dependencies"""
-
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Self, TypeVar, Iterator, cast
+import datetime
+from typing import Self, Optional, TypeVar, Generic, Iterator, cast
 
-import numpy as np
 import pandas as pd # type: ignore
+import numpy as np
+import numpy.typing as npt
 
 from algo_trade.instrument import Instrument
 from algo_trade._constants import DAYS_IN_YEAR
@@ -59,7 +59,7 @@ class StandardDeviation(pd.DataFrame):
         factor : float = DAYS_IN_YEAR ** 0.5
 
         if inplace:
-            self *= factor
+            self *= factor # type: ignore
             self.__is_annualized = True
             return None
 
@@ -96,7 +96,7 @@ class Variance(pd.DataFrame):
         factor : float = DAYS_IN_YEAR
 
         if inplace:
-            self *= factor
+            self *= factor # type: ignore
             self.__is_annualized = True
             return None
 
@@ -115,13 +115,13 @@ class Variance(pd.DataFrame):
 
 class Covariance:
     def __init__(
-            self,
-            covariance_matrices : Optional[np.ndarray] = None,
-            dates : Optional[pd.DatetimeIndex] = None,
-            instrument_names : Optional[list[str]] = None
+          self,
+          covariance_matrices : Optional[npt.NDArray[np.float64]] = None,
+          dates : pd.DatetimeIndex = None,
+          instrument_names : Optional[list[str]] = None
         ) -> None:
 
-        self._covariance_matrices : Optional[np.ndarray] = covariance_matrices
+        self._covariance_matrices : Optional[npt.NDArray[np.float64]] = covariance_matrices
         self._dates : Optional[pd.DatetimeIndex] = dates
         self._instrument_names : Optional[list[str]] = instrument_names
 
@@ -138,6 +138,8 @@ class Covariance:
                         if i <= j
         ]
         rows = []
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
         for n in range(self._covariance_matrices.shape[0]):
             row = []
             for i, instrument_I in enumerate(self._instrument_names):
@@ -157,6 +159,9 @@ class Covariance:
             raise ValueError("Covariance object is empty")
 
         intersection = self._dates.intersection(other_dates)
+
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
 
         self._covariance_matrices = self._covariance_matrices[self._dates.isin(intersection)]
         self._dates = intersection
@@ -219,7 +224,7 @@ class Covariance:
     def __repr__(self) -> str:
         return str(self.to_frame().__repr__())
 
-    def __getitem__(self, key : int) -> np.ndarray:
+    def __getitem__(self, key : int) -> npt.NDArray[np.float64]:
         if self._covariance_matrices is None:
             raise ValueError("Covariance object is empty")
 
@@ -229,7 +234,9 @@ class Covariance:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : int) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[key]
             return pd.DataFrame(
                 data=covariance_matrix,
@@ -241,7 +248,9 @@ class Covariance:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : str | datetime.datetime) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
             return pd.DataFrame(
                 data=covariance_matrix,
@@ -336,9 +345,9 @@ class RiskMeasure(ABC, Generic[T]):
 
         covar_df = self.get_cov().to_frame()
 
-        dates = covar_df.index
+        dates : pd.Index = covar_df.index
 
-        jump_covariances = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
+        jump_covariances : pd.DataFrame = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
 
         for i in range(len(dates)):
             if i < window:
@@ -365,7 +374,7 @@ class CRV(RiskMeasure[T]):
 
         super().__init__(tau=risk_target)
 
-        self.instruments = instruments
+        self.instruments : list[T] = instruments
         self.fill = fill
         self.window = window
         self.span = span
