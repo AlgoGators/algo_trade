@@ -1,13 +1,13 @@
+import asyncio
 from enum import StrEnum
-import pandas as pd
-import databento as db
-from pathlib import Path
 from dotenv import load_dotenv
 import os
-import asyncio
+from pathlib import Path
+
+import databento as db
+import pandas as pd # type: ignore
 
 load_dotenv()
-
 
 # TODO: Add more vendor catalogs such as Norgate
 class CATALOG(StrEnum):
@@ -222,8 +222,10 @@ class Contract:
             new_definitions: db.DBNStore = await self._fetch_databento_definitions_async(client, new_data)
             
             # Combine new data with existing data and skip duplicates if they exist based on index
-            self.data = pd.concat([self.data, new_data.to_df()]).drop_duplicates()
-            self.definitions = pd.concat([self.definitions, new_definitions.to_df()]).drop_duplicates()
+            self.data = pd.concat([self.data, new_data.to_df()])
+            self.data = self.data[~self.data.index.duplicated(keep="last")]
+            self.definitions = pd.concat([self.definitions, new_definitions.to_df()])
+            self.definitions = self.definitions[~self.definitions.index.duplicated(keep="last")]
         except Exception as e:
             print(f"Error: {e}")
 
@@ -855,10 +857,12 @@ class Contract:
                     # Combine new data with existing data and skip duplicates if they exist based on index
                     self.data = pd.concat(
                         [self.data, new_data.to_df()]
-                    ).drop_duplicates()
+                    )
+                    self.data = self.data[~self.data.index.duplicated(keep="last")]
                     self.definitions = pd.concat(
                         [self.definitions, new_definitions.to_df()]
-                    ).drop_duplicates()
+                    )
+                    self.definitions = self.definitions[~self.definitions.index.duplicated(keep="last")]
                 except Exception as e:
                     print(f"Error: {e}")
 
@@ -919,15 +923,19 @@ class Contract:
             # WARN: The API "should" be able to handle data requests under 5 GB but have had issues in the pass with large requests
             return
 
-async def main():
+async def main() -> None:
     contract: Contract = Contract(
         instrument="ES",
-        dataset=DATASET.CME,
+        dataset=DATASET.GLOBEX,
         schema=Agg.DAILY,
-        catalog=CATALOG.NORGATE,
+        catalog=CATALOG.DATABENTO,
     )
-    contract.construct_norgate()
-    print(contract.close)
+    client: db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
+    task = contract.construct_async(client, RollType.CALENDAR, ContractType.FRONT)
+    await task
+
+    print(contract.get_contract())
+    
 
 if __name__ == "__main__":
     # Example Usage
