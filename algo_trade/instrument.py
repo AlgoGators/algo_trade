@@ -106,7 +106,7 @@ class Instrument():
         ) -> None:
         self._symbol : str = symbol
         self._ib_symbol : str = ib_symbol if ib_symbol is not None else symbol
-        self._dataset : str = dataset
+        self._dataset : DATASET = dataset
         self.client : db.Historical = db.Historical(os.getenv("DATABENTO_API_KEY"))
         self.multiplier : float = multiplier
         self._currency : str = currency
@@ -579,6 +579,7 @@ async def fetch_futures_data(futures : list[Future], rate: int = 5) -> None:
     Returns:
     None
     """
+    semaphore = asyncio.Semaphore(rate)
     async def fetch_with_semaphore(future: Future) -> None:
         async with semaphore:
             await future.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
