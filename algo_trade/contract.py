@@ -1,6 +1,6 @@
 import asyncio
 from enum import StrEnum
-import pandas as pd
+import pandas as pd # type: ignore
 import databento as db
 from pathlib import Path
 from dotenv import load_dotenv
