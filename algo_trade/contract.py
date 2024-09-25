@@ -138,21 +138,21 @@ class Contract:
         schema: Agg,
         catalog: CATALOG = CATALOG.DATABENTO,
     ):
-        self.data: pd.DataFrame
-        self.definitions: pd.DataFrame
-        self._timestamp: pd.Index
-        self._open: pd.Series
-        self._high: pd.Series
-        self._low: pd.Series
-        self._close: pd.Series
-        self._volume: pd.Series
-        self._expiration: pd.Series
-        self._instrument_id: pd.Series
-        self._backadjusted: pd.Series = pd.Series()
-        self.instrument: str = instrument
-        self.dataset: DATASET = dataset
-        self.schema: Agg = schema
-        self.catalog: CATALOG = catalog
+        self.data : pd.DataFrame
+        self.definitions : pd.DataFrame
+        self._timestamp : pd.Index
+        self._open : pd.Series
+        self._high : pd.Series
+        self._low : pd.Series
+        self._close : pd.Series
+        self._volume : pd.Series
+        self._expiration : pd.Series
+        self._instrument_id : pd.Series
+        self._backadjusted : pd.Series = pd.Series()
+        self.instrument : str = instrument
+        self.dataset : DATASET = dataset
+        self.schema : Agg = schema
+        self.catalog : CATALOG = catalog
 
     def __str__(self) -> str:
         return f"Bar: {self.instrument} - {self.dataset} - {self.schema}"
