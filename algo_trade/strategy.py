@@ -2,7 +2,7 @@
 Contains Strategy Abstract Base Class and data fetchers (just futures for now)
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC
 import asyncio
 from typing import Callable, Generic, Optional, TypeVar
 
@@ -12,6 +12,7 @@ import pandas as pd # type: ignore
 from algo_trade.rules import Rule
 from algo_trade.instrument import Agg, ContractType, Future, Instrument, RollType
 from algo_trade.risk_measures import RiskMeasure
+from algo_trade._utils import deprecated
 
 T = TypeVar('T', bound='Instrument')
 
@@ -60,7 +61,7 @@ class Strategy(ABC, Generic[T]):
 
         self._positions = value
 
-    @abstractmethod
+    @deprecated
     async def fetch_data(self) -> None:
         """
             fetch_data method is required when designing a strategy.
