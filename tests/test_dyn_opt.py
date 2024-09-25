@@ -1,15 +1,16 @@
 import unittest
 from functools import partial
-import pandas as pd
-import numpy as np
 
-from algo_trade.dyn_opt import dyn_opt, single_day_optimization
+import numpy as np
+import pandas as pd # type: ignore
+
 from algo_trade.contract import Contract
-from algo_trade.trading_system import TradingSystem
+from algo_trade.dyn_opt import dyn_opt, single_day_optimization
 from algo_trade.instrument import Future, Agg
 from algo_trade.risk_measures import GARCH, RiskMeasure, Covariance
-from algo_trade.strategy import Strategy
 from algo_trade.rules import capital_scaling, equal_weight, risk_parity
+from algo_trade.strategy import Strategy
+from algo_trade.trading_system import TradingSystem
 
 from tests.utils import PriceSeries
 
@@ -47,7 +48,7 @@ SEED = 10
 
 class TestStrategy(Strategy[Future]):
     def __init__(self, instruments: list[Future], risk_object: RiskMeasure, capital: float):
-        super().__init__(capital=capital)
+        super().__init__()
         self.instruments: list[Future] = instruments
         self.risk_object = risk_object
         self.rules = [
@@ -128,8 +129,8 @@ class TestDynOpt(unittest.TestCase):
         volume = pd.read_parquet('tests/testing_data/dyn_opt/open_interest.parquet')[-500:]
         held_positions = pd.read_parquet('tests/testing_data/dyn_opt/optimized_positions.parquet')[-500:]
 
-        covar = Covariance().from_frame(covariances)
-        jump_covar = Covariance().from_frame(jump_covariances)
+        covar = Covariance.from_frame(covariances)
+        jump_covar = Covariance.from_frame(jump_covariances)
 
         notional_exposure_per_contract = unadj_prices * multipliers.iloc[0]
         weight_per_contract = notional_exposure_per_contract / capital
@@ -197,8 +198,8 @@ class TestDynOpt(unittest.TestCase):
         portfolio.positions = ideal_positions
         portfolio.positions.index = pd.to_datetime(portfolio.positions.index)
         sim_risk_object = SimRiskObject()
-        sim_risk_object.covar = Covariance().from_frame(covariances)
-        sim_risk_object.jump_covar = Covariance().from_frame(jump_covariances)
+        sim_risk_object.covar = Covariance.from_frame(covariances)
+        sim_risk_object.jump_covar = Covariance.from_frame(jump_covariances)
         sim_risk_object.tau = tau
         portfolio.risk_object = sim_risk_object
 
