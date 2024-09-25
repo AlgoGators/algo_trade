@@ -16,7 +16,8 @@ def minimum_volatility(
         annualized_volatility : float | npt.NDArray[np.float64]
     ) -> bool | npt.NDArray[np.bool_]:
     """
-    Returns True if the returns for a given instrument meets a minimum level of volatility; else, False
+    Returns True if the returns for a given instrument meets a minimum level of volatility;
+    else, False
     (works for both single instruments and arrays)
 
     Parameters:
@@ -38,10 +39,10 @@ def minimum_volatility(
     return annualized_volatility >= (max_forecast_ratio * IDM * instrument_weight * tau) / maximum_leverage
 
 def portfolio_multiplier(
-        max_portfolio_leverage : float, 
-        max_correlation_risk : float, 
-        max_portfolio_volatility : float,
-        max_portfolio_jump_risk : float
+        max_portfolio_leverage : np.float64, 
+        max_correlation_risk : np.float64, 
+        max_portfolio_volatility : np.float64,
+        max_portfolio_jump_risk : np.float64
     ) -> Callable[
         [
             npt.NDArray[np.float64],
@@ -61,10 +62,14 @@ def portfolio_multiplier(
                 the notional exposure / position * # positions / capital
                 Same as dynamic optimization
         """
-        leverage = np.sum(np.abs(positions_weighted))
+        leverage : np.float64 = np.sum(np.abs(positions_weighted))
         if leverage == 0:
             return np.float64(1)
-        return min(max_portfolio_leverage / leverage, np.float64(1))
+
+        if max_portfolio_leverage / leverage < 1:
+            return max_portfolio_leverage / leverage
+
+        return np.float64(1)
 
     def correlation_risk(
             positions_weighted : npt.NDArray[np.float64],
@@ -79,10 +84,14 @@ def portfolio_multiplier(
             annualized_volatility : np.ndarray
                 standard deviation of returns for the instrument, in same terms as tau e.g. annualized
         """
-        correlation_risk = np.sum(np.abs(positions_weighted) * annualized_volatility)
+        correlation_risk : np.float64 = np.sum(np.abs(positions_weighted) * annualized_volatility)
         if correlation_risk == 0:
             return np.float64(1)
-        return min(max_correlation_risk / correlation_risk, np.float64(1))
+
+        if max_correlation_risk / correlation_risk < 1:
+            return max_correlation_risk / correlation_risk
+
+        return np.float64(1)
     
     def portfolio_risk(
             positions_weighted : npt.NDArray[np.float64],
@@ -97,10 +106,14 @@ def portfolio_multiplier(
             covariance_matrix : np.ndarray
                 the covariances between the instrument returns
         """
-        portfolio_volatility = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
+        portfolio_volatility : np.float64 = np.sqrt(positions_weighted @ covariance_matrix @ positions_weighted.T)
         if portfolio_volatility == 0:
             return np.float64(1)
-        return min(max_portfolio_volatility / portfolio_volatility, np.float64(1))
+
+        if max_portfolio_volatility / portfolio_volatility < 1:
+            return max_portfolio_volatility / portfolio_volatility
+
+        return np.float64(1)
 
     def jump_risk_multiplier(
             positions_weighted : npt.NDArray[np.float64],
@@ -117,10 +130,15 @@ def portfolio_multiplier(
             jumps : np.ndarray
                 the jumps in the instrument returns
         """
-        jump_risk = np.sqrt(positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
+        jump_risk : np.float64 = np.sqrt(
+            positions_weighted @ jump_covariance_matrix @ positions_weighted.T)
         if jump_risk == 0:
             return np.float64(1)
-        return min(max_portfolio_jump_risk / jump_risk, np.float64(1))
+
+        if max_portfolio_jump_risk / jump_risk < 1:
+            return max_portfolio_jump_risk / jump_risk
+
+        return np.float64(1)
 
     def fn(
             positions_weighted : npt.NDArray[np.float64],
