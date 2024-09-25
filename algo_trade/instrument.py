@@ -516,6 +516,7 @@ class Future(Instrument):
             await contract.construct_async(
                 client=self.client, roll_type=roll_type, contract_type=contract_type
             )
+            self.contracts[name] = contract
             if contract_type == ContractType.FRONT:
                 self.front = contract
                 self.price = contract.backadjusted
