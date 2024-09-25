@@ -1,7 +1,7 @@
 """Risk Measures Module, includes RiskMeasure class and subclasses and their dependencies"""
 
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Self, TypeVar
+from typing import Generic, Optional, Self, TypeVar, Iterator, cast
 
 import numpy as np
 import pandas as pd # type: ignore
@@ -50,7 +50,7 @@ class StandardDeviation(pd.DataFrame):
 
     def annualize(
             self,
-            inplace=False
+            inplace : Optional[bool] = False
         ) -> Optional[Self]:
 
         if self.__is_annualized:
@@ -67,8 +67,8 @@ class StandardDeviation(pd.DataFrame):
         new.annualize(inplace=True)
         return new
 
-    def __mul__(self, other) -> 'StandardDeviation':
-        return super().__mul__(other)
+    def __mul__(self, other : float | pd.DataFrame) -> 'StandardDeviation':
+        return super().__mul__(other) # type: ignore
 
     def to_variance(self) -> 'Variance':
         return Variance(self ** 2)
@@ -87,7 +87,7 @@ class Variance(pd.DataFrame):
 
     def annualize(
             self,
-            inplace=False
+            inplace : Optional[bool] = False
         ) -> Optional[Self]:
 
         if self.__is_annualized:
@@ -104,8 +104,8 @@ class Variance(pd.DataFrame):
         new.annualize(inplace=True)
         return new
 
-    def __mul__(self, other) -> 'Variance':
-        return super().__mul__(other)
+    def __mul__(self, other : float | pd.DataFrame) -> 'Variance':
+        return super().__mul__(other) # type : ignore
 
     def to_standard_deviation(self) -> 'StandardDeviation':
         return StandardDeviation(self ** 0.5)
@@ -185,11 +185,18 @@ class Covariance:
             instrument_names=instrument_names
         )
 
-    def iterate(self):
+    def iterate(self) -> Iterator[tuple[pd.Timestamp | None, np.ndarray | None]]:
+        if self._covariance_matrices is None or self._dates is None:
+            yield None, None
+            return
+
         for n in range(self._covariance_matrices.shape[0]):
             yield self._dates[n], self._covariance_matrices[n]
 
-    def dropna(self):
+    def dropna(self) -> None:
+        if self._covariance_matrices is None or self._dates is None:
+            return
+
         valid_indices = ~np.isnan(self._covariance_matrices).any(axis=(1, 2))
         self._covariance_matrices = self._covariance_matrices[valid_indices]
         self._dates = self._dates[valid_indices]
@@ -199,21 +206,24 @@ class Covariance:
         return self._covariance_matrices is None
 
     @property
-    def iloc(self):
+    def iloc(self) -> '_ILocIndexer':
         return self._ILocIndexer(self)
 
     @property
-    def loc(self):
+    def loc(self) -> '_LocIndexer':
         return self._LocIndexer(self)
 
     def __str__(self) -> str:
-        return self.to_frame().__str__()
+        return str(self.to_frame())
 
     def __repr__(self) -> str:
-        return self.to_frame().__repr__()
+        return str(self.to_frame().__repr__())
 
-    def __getitem__(self, key):
-        return self._covariance_matrices[key]
+    def __getitem__(self, key : int) -> np.ndarray:
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance object is empty")
+
+        return cast(np.ndarray, self._covariance_matrices[key])
 
     class _ILocIndexer:
         def __init__(self, parent : 'Covariance') -> None:
