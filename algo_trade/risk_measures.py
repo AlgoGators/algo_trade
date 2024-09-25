@@ -1,21 +1,30 @@
-import pandas as pd
-import numpy as np
 from abc import ABC, abstractmethod
-from typing import Self, Optional, TypeVar, Generic
+import datetime
+from typing import Self, Optional, TypeVar, Generic, Iterator, cast
+
+import pandas as pd # type: ignore
+import numpy as np
+import numpy.typing as npt
 
 from algo_trade.instrument import Instrument
 from algo_trade._constants import DAYS_IN_YEAR
 
 class _utils:
     @staticmethod
-    def ffill_zero(df: pd.DataFrame) -> pd.DataFrame:
+    def ffill_zero(
+            df: pd.DataFrame
+        ) -> pd.DataFrame:
+
         """
-        Forward fill zeros in a DataFrame. This function will replace all zeros with the last non-zero value in the DataFrame.
+            Forward fill zeros in a DataFrame.
         """
-        # We assume any gaps in percent returns at this point are because the market was closed that day,
+        # Assume any gaps in percent returns at this point are b/c the market was closed that day,
         # but only fill forward;
+        #* worth noting by added 0 % returns, we are deflating volatility
         # Find the index of the first non-NaN value in each column
-        first_non_nan_index = df.apply(lambda x: x.first_valid_index())
+        first_non_nan_index : pd.DataFrame = df.apply(lambda x: x.first_valid_index())
+
+        df = df.copy()
 
         # Iterate over each column and replace NaN values below the first non-NaN index with 0
         for column in df.columns:
@@ -31,11 +40,19 @@ class _utils:
         return df
 
 class StandardDeviation(pd.DataFrame):
-    def __init__(self, data : pd.DataFrame = None) -> None:
+    def __init__(
+            self,
+            data : pd.DataFrame = None
+        ) -> None:
+
         super().__init__(data)
         self.__is_annualized : bool = False
 
-    def annualize(self, inplace=False) -> Optional[Self]:
+    def annualize(
+            self,
+            inplace : Optional[bool] = False
+        ) -> Optional[Self]:
+
         if self.__is_annualized:
             return self
 
@@ -50,18 +67,29 @@ class StandardDeviation(pd.DataFrame):
         new.annualize(inplace=True)
         return new
 
+    def __mul__(self, other : float | pd.DataFrame) -> 'StandardDeviation':
+        return super().__mul__(other) # type: ignore
+
     def to_variance(self) -> 'Variance':
         return Variance(self ** 2)
-    
+
     def to_frame(self) -> pd.DataFrame:
         return pd.DataFrame(self)
 
 class Variance(pd.DataFrame):
-    def __init__(self, data : pd.DataFrame = None) -> None:
+    def __init__(
+            self,
+            data : pd.DataFrame = None
+        ) -> None:
+
         super().__init__(data)
         self.__is_annualized = False
 
-    def annualize(self, inplace=False) -> Optional[Self]:
+    def annualize(
+            self,
+            inplace : Optional[bool] = False
+        ) -> Optional[Self]:
+
         if self.__is_annualized:
             return self
 
@@ -72,26 +100,46 @@ class Variance(pd.DataFrame):
             self.__is_annualized = True
             return None
 
-        new = Variance(self)
-        new = new.annualize(inplace=True)
+        new : Variance = Variance(self)
+        new.annualize(inplace=True)
         return new
-    
+
+    def __mul__(self, other : float | pd.DataFrame) -> pd.DataFrame:
+        return super().__mul__(other) # type : ignore
+
     def to_standard_deviation(self) -> 'StandardDeviation':
         return StandardDeviation(self ** 0.5)
-    
+
     def to_frame(self) -> pd.DataFrame:
         return pd.DataFrame(self)
 
 class Covariance:
-    def __init__(self, covariance_matrices : np.ndarray = None, dates : pd.DatetimeIndex = None, instrument_names : list[str] = None) -> None:
-        self._covariance_matrices = covariance_matrices
-        self._dates = dates
-        self._instrument_names = instrument_names if instrument_names is not None else []
-        self._columns = []
+    def __init__(
+          self,
+          covariance_matrices : Optional[npt.NDArray[np.float64]] = None,
+          dates : pd.DatetimeIndex = None,
+          instrument_names : Optional[list[str]] = None
+        ) -> None:
+
+        self._covariance_matrices : Optional[npt.NDArray[np.float64]] = covariance_matrices
+        self._dates : Optional[pd.DatetimeIndex] = dates
+        self._instrument_names : Optional[list[str]] = instrument_names
 
     def to_frame(self) -> pd.DataFrame:
-        self._columns = [f'{instrument_I}_{instrument_J}' for i, instrument_I in enumerate(self._instrument_names) for j, instrument_J in enumerate(self._instrument_names) if i <= j]
+        if (self._covariance_matrices is None
+            or self._dates is None
+            or self._instrument_names is None):
+            return pd.DataFrame()
+
+        columns = [
+            f'{instrument_I}_{instrument_J}'
+                for i, instrument_I in enumerate(self._instrument_names)
+                    for j, instrument_J in enumerate(self._instrument_names)
+                        if i <= j
+        ]
         rows = []
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
         for n in range(self._covariance_matrices.shape[0]):
             row = []
             for i, instrument_I in enumerate(self._instrument_names):
@@ -100,46 +148,59 @@ class Covariance:
                         continue
                     row.append(self._covariance_matrices[n, i, j])
             rows.append(row)
-        return pd.DataFrame(rows, columns=self._columns, index=self._dates)
+        return pd.DataFrame(rows, columns=columns, index=self._dates)
 
-    # @property
-    # def columns(self) -> list[str]:
-    #     return self._columns
-    
     @property
     def index(self) -> pd.DatetimeIndex:
         return self._dates
-    
-    def reindex(self, dates : pd.DatetimeIndex):
-        intersection = self._dates.intersection(dates)
+
+    def reindex(self, other_dates : pd.DatetimeIndex) -> None:
+        if self._dates is None or self._covariance_matrices is None:
+            raise ValueError("Covariance object is empty")
+
+        intersection = self._dates.intersection(other_dates)
+
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance matrices are empty")
 
         self._covariance_matrices = self._covariance_matrices[self._dates.isin(intersection)]
         self._dates = intersection
 
-    def from_frame(self, df : pd.DataFrame, inplace : bool = False) -> Optional['Covariance']:
-        for column in df.columns:
-            if column.split('_')[0] not in self._instrument_names:
-                self._instrument_names.append(column.split('_')[0])
-        
-        self._dates = pd.to_datetime(df.index)
+    def from_frame(df : pd.DataFrame) -> 'Covariance':
+        instrument_names = []
 
-        self._covariance_matrices = np.zeros((df.shape[0], len(self._instrument_names), len(self._instrument_names)))
+        for column in df.columns:
+            if column.split('_')[0] not in instrument_names:
+                instrument_names.append(column.split('_')[0])
+
+        dates = pd.to_datetime(df.index)
+
+        covariance_matrices = np.zeros((df.shape[0], len(instrument_names), len(instrument_names)))
         for n, (index, row) in enumerate(df.iterrows()):
-            for i, instrument_I in enumerate(self._instrument_names):
-                for j, instrument_J in enumerate(self._instrument_names):
+            for i, instrument_I in enumerate(instrument_names):
+                for j, instrument_J in enumerate(instrument_names):
                     if i > j:
                         continue
-                    self._covariance_matrices[n, i, j] = row[f'{instrument_I}_{instrument_J}']
-                    self._covariance_matrices[n, j, i] = row[f'{instrument_I}_{instrument_J}']
-        
-        if not inplace:
-            return self
+                    covariance_matrices[n, i, j] = row[f'{instrument_I}_{instrument_J}']
+                    covariance_matrices[n, j, i] = row[f'{instrument_I}_{instrument_J}']
 
-    def iterate(self):
+        return Covariance(
+            covariance_matrices=covariance_matrices,
+            dates=dates,
+            instrument_names=instrument_names
+        )
+
+    def iterate(self) -> Iterator[tuple[pd.Timestamp, np.ndarray]]:
+        if self._covariance_matrices is None or self._dates is None:
+            raise ValueError("Covariance object is empty")
+
         for n in range(self._covariance_matrices.shape[0]):
             yield self._dates[n], self._covariance_matrices[n]
 
-    def dropna(self):
+    def dropna(self) -> None:
+        if self._covariance_matrices is None or self._dates is None:
+            return
+
         valid_indices = ~np.isnan(self._covariance_matrices).any(axis=(1, 2))
         self._covariance_matrices = self._covariance_matrices[valid_indices]
         self._dates = self._dates[valid_indices]
@@ -147,48 +208,66 @@ class Covariance:
     @property
     def empty(self) -> bool:
         return self._covariance_matrices is None
-    
+
     @property
-    def iloc(self):
+    def iloc(self) -> '_ILocIndexer':
         return self._ILocIndexer(self)
 
     @property
-    def loc(self):
+    def loc(self) -> '_LocIndexer':
         return self._LocIndexer(self)
 
     def __str__(self) -> str:
-        return self.to_frame().__str__()
-    
+        return str(self.to_frame())
+
     def __repr__(self) -> str:
-        return self.to_frame().__repr__()
-    
-    def __getitem__(self, key):
-        return self._covariance_matrices[key]
+        return str(self.to_frame().__repr__())
+
+    def __getitem__(self, key : int) -> npt.NDArray[np.float64]:
+        if self._covariance_matrices is None:
+            raise ValueError("Covariance object is empty")
+
+        return cast(np.ndarray, self._covariance_matrices[key])
 
     class _ILocIndexer:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : int) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[key]
-            return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
+            return pd.DataFrame(
+                data=covariance_matrix,
+                index=self.parent._instrument_names,
+                columns=self.parent._instrument_names
+            )
 
     class _LocIndexer:
         def __init__(self, parent : 'Covariance') -> None:
             self.parent = parent
 
-        def __getitem__(self, key):
+        def __getitem__(self, key : str | datetime.datetime) -> pd.DataFrame:
+            if self.parent._covariance_matrices is None or self.parent._dates is None:
+                raise ValueError("Covariance matrices are empty")
             covariance_matrix = self.parent._covariance_matrices[self.parent._dates.get_loc(key)]
-            return pd.DataFrame(covariance_matrix, index=self.parent._instrument_names, columns=self.parent._instrument_names)
-        
+            return pd.DataFrame(
+                data=covariance_matrix,
+                index=self.parent._instrument_names,
+                columns=self.parent._instrument_names
+            )
+
 
 T = TypeVar('T', bound=Instrument)
 
 class RiskMeasure(ABC, Generic[T]):
-    def __init__(self, tau : float = None) -> None:
-        self.instruments : list[Instrument]
+    def __init__(
+            self,
+            tau : Optional[float] = None
+        ) -> None:
 
-        self.__returns = pd.DataFrame()
+        self.instruments : list[T]
+        self.__returns : pd.DataFrame = pd.DataFrame()
         self.__product_returns : pd.DataFrame = pd.DataFrame()
         self.__jump_covariances : Covariance = Covariance()
         self.fill : bool
@@ -201,10 +280,12 @@ class RiskMeasure(ABC, Generic[T]):
         if not hasattr(self, '_tau'):
             raise ValueError("tau is not set")
         return self._tau
-    
+
     @tau.setter
     def tau(self, value : float) -> None:
-        if (value < 0) or not isinstance(value, float):
+        if not isinstance(value, float):
+            raise TypeError("tau, x, is a float such that x ∈ (0, inf)")
+        if value < 0:
             raise ValueError("tau, x, is a float such that x ∈ (0, inf)")
         self._tau = value
 
@@ -235,12 +316,14 @@ class RiskMeasure(ABC, Generic[T]):
             for j, instrument_j in enumerate(self.instruments):
                 if i > j:
                     continue
-                
-                product_dictionary[f'{instrument_i.name}_{instrument_j.name}'] = returns[instrument_i.name] * returns[instrument_j.name]
+
+                product_dictionary[f'{instrument_i.name}_{instrument_j.name}'
+                ] = returns[instrument_i.name] * returns[instrument_j.name]
 
         self.__product_returns = pd.DataFrame(product_dictionary, index=returns.index)
 
-        self.__product_returns = _utils.ffill_zero(self.__product_returns) if self.fill else self.__product_returns
+        if self.fill:
+            self.__product_returns = _utils.ffill_zero(self.__product_returns)
 
         return self.__product_returns
 
@@ -251,19 +334,19 @@ class RiskMeasure(ABC, Generic[T]):
     @abstractmethod
     def get_cov(self) -> Covariance:
         pass
-    
+
     def get_jump_cov(self, percentile : float, window : int) -> Covariance:
         if not self.__jump_covariances.empty:
             return self.__jump_covariances
-    
+
         if (percentile < 0) or (percentile > 1):
             raise ValueError("percentile, x, is a float such that x ∈ (0, 1)")
 
         covar_df = self.get_cov().to_frame()
 
-        dates = covar_df.index
+        dates : pd.Index = covar_df.index
 
-        jump_covariances = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
+        jump_covariances : pd.DataFrame = pd.DataFrame(index=dates, columns=covar_df.columns, dtype=np.float64)
 
         for i in range(len(dates)):
             if i < window:
@@ -274,15 +357,23 @@ class RiskMeasure(ABC, Generic[T]):
 
         jump_covariances = jump_covariances.interpolate().bfill() if self.fill else jump_covariances
 
-        self.__jump_covariances = Covariance().from_frame(jump_covariances)
+        self.__jump_covariances = Covariance.from_frame(jump_covariances)
 
         return self.__jump_covariances
 
 class CRV(RiskMeasure[T]):
-    def __init__(self, risk_target : float, instruments : list[T], window : int, span : int, fill : bool = True) -> None:
+    def __init__(
+            self,
+            risk_target : float,
+            instruments : list[T],
+            window : int,
+            span : int,
+            fill : bool = True
+        ) -> None:
+
         super().__init__(tau=risk_target)
 
-        self.instruments = instruments
+        self.instruments : list[T] = instruments
         self.fill = fill
         self.window = window
         self.span = span
@@ -310,7 +401,7 @@ class CRV(RiskMeasure[T]):
         self.__var = Variance(weighted_vol / (DAYS_IN_YEAR ** 0.5) ** 2)
 
         return self.__var
-    
+
     def get_weekly_returns(self) -> pd.DataFrame:
         if not self.__weekly_returns.empty:
             return self.__weekly_returns
@@ -321,11 +412,15 @@ class CRV(RiskMeasure[T]):
         # ! there is some statistical error here because the first weekly return could be
         # ! less than 5 returns but this should be insignificant for the quantity of returns
         n = len(return_multipliers)
-        complete_groups_index = n // 5 * 5  # This will give the largest number less than n that is a multiple of 5
+        complete_groups_index = n // 5 * 5  # Largest number less than n that is a multiple of 5
         sliced_return_multipliers = return_multipliers[:complete_groups_index]
 
-        # group into chunks of 5, and then calculate the product of each chunk, - 1 to get the return
-        weekly_returns = sliced_return_multipliers.groupby(np.arange(complete_groups_index) // 5).prod() - 1
+        # group into chunks of 5, then calculate the product of each chunk, - 1 to get the return
+        weekly_returns : pd.DataFrame = (
+            sliced_return_multipliers
+            .groupby(np.arange(complete_groups_index) // 5)
+            .prod()
+        ) - 1
 
         # Use the last date in each chunk
         weekly_returns.index = self.get_returns().index[4::5]
@@ -346,12 +441,13 @@ class CRV(RiskMeasure[T]):
             return self.__cov
 
         rolling_corr : pd.DataFrame = self.get_corr()
-        vol : pd.DataFrame = self.get_var().to_standard_deviation().annualize().to_frame()
+        std : StandardDeviation = self.get_var().to_standard_deviation()
+        std.annualize()
+        vol : pd.DataFrame = std.to_frame()
 
-        # weekly_dates = rolling_corr.index.levels[0]
         weekly_dates = rolling_corr.index.get_level_values(0).unique()
 
-        vol : pd.DataFrame = vol.reindex(weekly_dates)
+        vol = vol.reindex(weekly_dates)
 
         if len(vol) != len(weekly_dates):
             raise ValueError("vol and dates do not match")
@@ -368,7 +464,7 @@ class CRV(RiskMeasure[T]):
                 vol_matrix : pd.Series = vol.loc[date]
                 corr_matrix = rolling_corr.xs(date, level=0)
                 cov = np.diag(vol_matrix.values) @ corr_matrix.values @ np.diag(vol_matrix.values)
-                last_cov = cov            
+                last_cov = cov
             covs.append(last_cov)
 
         i : int = 0
@@ -390,7 +486,7 @@ class EqualWeight(RiskMeasure[T]):
         instruments : list[T],
         window : int,
         fill : bool = True) -> None:
-        
+
         super().__init__(tau=risk_target)
 
         self.instruments = instruments
@@ -399,17 +495,23 @@ class EqualWeight(RiskMeasure[T]):
 
         self.__var = Variance()
         self.__cov = Covariance()
-    
+
     def get_var(self) -> Variance:
         if not self.__var.empty:
             return self.__var
 
         covar : Covariance = self.get_cov()
         variances = []
-        for (date, matrix) in covar.iterate():
+        for (_, matrix) in covar.iterate():
             variances.append(np.diag(matrix))
 
-        self.__var = Variance(pd.DataFrame(variances, index=covar._dates, columns=covar._instruments))
+        self.__var = Variance(
+            data=pd.DataFrame(
+                variances,
+                index=covar._dates,
+                columns=covar._instrument_names
+            )
+        )
 
         return self.__var
 
@@ -417,17 +519,25 @@ class EqualWeight(RiskMeasure[T]):
         if self.__cov.empty:
             returns_matrix = self.get_returns().values
 
-            covariance_matrices = np.zeros((returns_matrix.shape[0], returns_matrix.shape[1], returns_matrix.shape[1]))
+            covariance_matrices = np.zeros((
+                returns_matrix.shape[0],
+                returns_matrix.shape[1],
+                returns_matrix.shape[1]
+            ))
 
             for i in range(1, returns_matrix.shape[0]):
                 returns = returns_matrix[i-self.window:i+1]
                 covariance_matrix = returns.T @ returns / self.window
                 covariance_matrices[i] = covariance_matrix
 
-            self.__cov = Covariance(covariance_matrices, self.get_returns().index, self.get_returns().columns)
+            self.__cov = Covariance(
+                covariance_matrices=covariance_matrices,
+                dates=self.get_returns().index,
+                instrument_names=self.get_returns().columns
+            )
 
         return self.__cov
-    
+
     def get_corr(self) -> pd.DataFrame:
         # Dinv = np.diag(1 / np.sqrt(np.diag(cov)))
         # corr = Dinv @ cov @ Dinv
@@ -440,7 +550,7 @@ class Simple(RiskMeasure[T]):
         instruments : list[T],
         window : int,
         fill : bool = True) -> None:
-        
+
         super().__init__(tau=risk_target)
 
         self.instruments = instruments
@@ -449,7 +559,7 @@ class Simple(RiskMeasure[T]):
 
         self.__var = Variance()
         self.__cov = Covariance()
-    
+
     def get_var(self) -> Variance:
         if not self.__var.empty:
             return self.__var
@@ -461,16 +571,20 @@ class Simple(RiskMeasure[T]):
         self.__var = Variance(variance)
 
         return self.__var
-    
+
     def get_cov(self) -> Covariance:
         if self.__cov.empty:
-            covar = pd.DataFrame(index=self.get_product_returns().index, columns=self.get_product_returns().columns, dtype=float)
+            covar = pd.DataFrame(
+                index=self.get_product_returns().index,
+                columns=self.get_product_returns().columns,
+                dtype=np.float64
+            )
 
             covar = self.get_product_returns().rolling(window=self.window).mean().bfill()
 
             covar = covar.interpolate() if self.fill else self.__cov
             covar = covar.iloc[self.window:, :]
-            self.__cov = Covariance().from_frame(covar)
+            self.__cov = Covariance.from_frame(covar)
 
         return self.__cov
 
@@ -491,21 +605,12 @@ class GARCH(RiskMeasure[T]):
         self.fill = fill
 
         self.__var = Variance()
-        self.__cov = pd.DataFrame()
+        self.__cov = Covariance()
 
     def get_var(self) -> Variance:
         if not self.__var.empty:
             return self.__var
-        
-        if not self.__cov.empty:
-            for name in self.__cov.columns:
-                if '_' not in name:
-                    continue
-                if name.split('_')[0] != name.split('_')[1]:
-                    continue
-                self.__var[name.split('_')[0]] = self.__cov[name]
-            return self.__var
-        
+
         variance : pd.DataFrame = pd.DataFrame()
 
         for i, instrument in enumerate(self.get_returns().columns.tolist()):
@@ -514,24 +619,39 @@ class GARCH(RiskMeasure[T]):
 
             dates = squared_returns.index
 
-            # Calculate rolling LT variance
-            LT_variances = squared_returns.rolling(window=self.minimum_observations).mean().bfill()
+            # Calculate rolling long-term variance
+            long_term_variances = (
+                squared_returns
+                .rolling(window=self.minimum_observations)
+                .mean()
+                .bfill()
+            )
 
             df = pd.Series(index=dates)
             df.iloc[0] = squared_returns.iloc[0]
 
             for j, _ in enumerate(dates[1:], 1):
-                df.iloc[j] = squared_returns.iloc[j] * self.weights[0] + df.iloc[j-1] * self.weights[1] + LT_variances.iloc[j] * self.weights[2]
+                df.iloc[j] = (
+                    squared_returns.iloc[j] * self.weights[0] +
+                    df.iloc[j-1] * self.weights[1] +
+                    long_term_variances.iloc[j] * self.weights[2]
+                )
 
             if i == 0:
                 variance = df.to_frame(instrument)
                 continue
 
-            variance = pd.merge(variance, df.to_frame(instrument), how='outer', left_index=True, right_index=True)
+            variance = pd.merge(
+                left=variance,
+                right=df.to_frame(instrument),
+                how='outer',
+                left_index=True,
+                right_index=True
+            )
 
         variance = variance.interpolate() if self.fill else variance
 
-        self.__var : Variance = Variance(variance[self.minimum_observations:])
+        self.__var = Variance(variance[self.minimum_observations:])
 
         return self.__var
 
@@ -540,18 +660,33 @@ class GARCH(RiskMeasure[T]):
             return self.__cov
 
         product_returns : np.ndarray = self.get_product_returns().dropna().values
-        LT_covariances : np.ndarray = self.get_product_returns().rolling(window=self.minimum_observations).mean().bfill().values
+        long_term_covariances : np.ndarray = (
+            self.get_product_returns()
+            .rolling(window=self.minimum_observations)
+            .mean()
+            .bfill()
+            .values
+        )
 
-        covar = pd.DataFrame(index=self.get_product_returns().index, columns=self.get_product_returns().columns, dtype=float)
+        covar = pd.DataFrame(
+            index=self.get_product_returns().index,
+            columns=self.get_product_returns().columns,
+            dtype=np.float64
+        )
+
         covar.iloc[0] = product_returns[0]
 
         for i in range(1, len(product_returns)):
-            covar.iloc[i] = product_returns[i] * self.weights[0] + covar.iloc[i-1] * self.weights[1] + LT_covariances[i] * self.weights[2]
+            covar.iloc[i] = (
+                product_returns[i] * self.weights[0] +
+                covar.iloc[i-1] * self.weights[1] +
+                long_term_covariances[i] * self.weights[2]
+            )
 
         covar = covar.interpolate() if self.fill else covar
         covar = covar.iloc[self.minimum_observations:, :]
 
-        self.__cov = Covariance().from_frame(covar)
+        self.__cov = Covariance.from_frame(covar)
 
         return self.__cov
 

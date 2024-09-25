@@ -1,15 +1,22 @@
-import pandas as pd
-import numpy as np
+from typing import Callable, TypeVar
 
-from algo_trade.instrument import Future
-from algo_trade.risk_measures import RiskMeasure
+import numpy as np
+import pandas as pd # type: ignore
+
+from algo_trade.instrument import Future, Instrument
+from algo_trade.risk_measures import RiskMeasure, StandardDeviation
 from algo_trade._constants import DAYS_IN_YEAR
 
-### Strategy Rules
+Rule = Callable[[], pd.DataFrame]
 
-def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
-    df = pd.DataFrame()
-    instrument: Future
+T = TypeVar('T', bound=Instrument)
+
+def capital_scaling(
+        instruments: list[Future],
+        capital: float
+    ) -> pd.DataFrame:
+
+    df : pd.DataFrame = pd.DataFrame()
     for instrument in instruments:
         if df.empty:
             df = (
@@ -22,21 +29,32 @@ def capital_scaling(instruments: list[Future], capital: float) -> pd.DataFrame:
                 instrument.front
                 .get_close()
                 .to_frame(instrument.name),
-                how="outer",
+                how="outer"
             )
 
     df.ffill(inplace=True)
 
-    capital_weighting = capital / df
+    capital_weighting : pd.DataFrame = capital / df
 
     return capital_weighting
 
-def risk_parity(risk_object: RiskMeasure) -> pd.DataFrame:
-    return risk_object.tau / risk_object.get_var().to_standard_deviation().annualize()
+def risk_parity(
+        risk_object: RiskMeasure[T]
+    ) -> pd.DataFrame:
 
-def equal_weight(instruments: list[Future]) -> pd.DataFrame:
-    df = pd.DataFrame()
-    instrument: Future
+    if risk_object.tau is None:
+        raise ValueError("Risk Measure object must have a tau value")
+
+    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
+    std.annualize(inplace=True)
+
+    return risk_object.tau / std
+
+def equal_weight(
+        instruments: list[Future]
+    ) -> pd.DataFrame:
+
+    df : pd.DataFrame = pd.DataFrame()
     for instrument in instruments:
         if df.empty:
             df = (
@@ -49,23 +67,26 @@ def equal_weight(instruments: list[Future]) -> pd.DataFrame:
                 instrument.front
                 .get_close()
                 .to_frame(instrument.name),
-                how="outer",
+                how="outer"
             )
 
     df.ffill(inplace=True)
 
-    not_null_mask = df.notnull()
-    weight_mask = 1 / df.notnull().sum(axis=1).astype(int)
+    not_null_mask : pd.DataFrame = df.notnull()
+    weight_mask : pd.DataFrame = 1 / df.notnull().sum(axis=1).astype(int)
 
-    weights = not_null_mask.mul(weight_mask, axis=0)
+    weights : pd.DataFrame = not_null_mask.mul(weight_mask, axis=0)
 
     return weights
 
-def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.DataFrame:
+def trend_signals(
+        instruments: list[Future],
+        risk_object : RiskMeasure[Future]
+    ) -> pd.DataFrame:
+
     forecasts: list[pd.Series] = []
-    instrument: Future
     for instrument in instruments:
-        trend = pd.DataFrame()
+        trend = pd.DataFrame(dtype=float)
 
         crossovers = [(2, 8), (4, 16), (8, 32), (16, 64), (32, 128), (64, 256)]
 
@@ -82,14 +103,13 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
                 .mean()
             )
 
+        std = risk_object.get_var().to_standard_deviation()
+        std.annualize(inplace=True)
+
         # Calculate the risk adjusted forecasts
         for t1, t2 in crossovers:
             trend[f"{t1}-{t2}"] /= (
-                risk_object
-                .get_var()
-                .to_standard_deviation()
-                .annualize()
-                [instrument.get_symbol()]
+                std[instrument.get_symbol()]
                 * instrument.front.close
             )
 
@@ -130,7 +150,7 @@ def trend_signals(instruments: list[Future], risk_object : RiskMeasure) -> pd.Da
 
     return df
 
-def IDM(risk_object : RiskMeasure) -> pd.DataFrame:
+def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
 
     returns = risk_object.get_returns()

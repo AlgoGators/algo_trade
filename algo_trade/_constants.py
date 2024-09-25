@@ -1,1 +1,1 @@
-DAYS_IN_YEAR = 256
+DAYS_IN_YEAR : int = 256
