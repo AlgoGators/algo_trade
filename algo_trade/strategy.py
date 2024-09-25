@@ -71,21 +71,23 @@ class Strategy(ABC, Generic[T]):
 
 class FutureDataFetcher:
     @staticmethod
+    @deprecated
     async def fetch_front(instruments: list[Future]) -> None:
         """
             Fetches the front contract data for the instruments
         """
         await asyncio.gather(*[
-            instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
+            instrument.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.FRONT)
             for instrument in instruments
         ])
 
     @staticmethod
+    @deprecated
     async def fetch_back(instruments: list[Future]) -> None:
         """
             Fetches the back contract data for the instruments
         """
         await asyncio.gather(*[
-            instrument.add_data(Agg.DAILY, RollType.CALENDAR, ContractType.BACK)
+            instrument.add_data_async(Agg.DAILY, RollType.CALENDAR, ContractType.BACK)
             for instrument in instruments
         ])
