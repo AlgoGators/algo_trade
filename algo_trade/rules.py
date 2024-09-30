@@ -79,6 +79,40 @@ def equal_weight(
 
     return weights
 
+
+
+def scaled_forecast(
+        crossover : tuple[int, int],
+        instruments : list[Future],
+        risk_object : RiskMeasure[Future]
+    ) -> pd.DataFrame:
+
+    trend = pd.DataFrame(dtype=float)
+    for instrument in instruments:
+        trend[instrument.symbol] = (
+            instrument.front
+            .backadjusted
+            .ewm(span=crossover[0], min_periods=crossover[0], adjust=False)
+            .mean()
+            - instrument.front
+            .backadjusted
+            .ewm(span=crossover[1], min_periods=crossover[1], adjust=False)
+            .mean()
+        )
+
+    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
+    std.annualize(inplace=True)
+
+    for instrument in instruments:
+        trend[instrument.symbol] /= (
+            std[instrument.symbol]
+            * instrument.front.close
+        )
+    
+    forecast_scalar = 10 / trend.abs().mean().mean()
+
+    trend *= forecast_scalar
+
 def trend_signals(
         instruments: list[Future],
         risk_object : RiskMeasure[Future]
@@ -136,8 +170,8 @@ def trend_signals(
         fdm = 1.35
         trend.Forecast = trend.Forecast * fdm
 
-        # Clip the final forecast to -20, 20
-        trend.Forecast = trend.Forecast.clip(-20, 20)
+        # # Clip the final forecast to -20, 20
+        # trend.Forecast = trend.Forecast.clip(-20, 20)
 
         forecasts.append((trend.Forecast / 10).rename(instrument.name))
 
@@ -171,3 +205,50 @@ def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     IDMs = IDMs.bfill()
 
     return pd.concat([IDMs.rename(instrument_name) for instrument_name in returns.columns], axis=1)
+
+def volatility_regime_scaling(risk_object : RiskMeasure) -> pd.DataFrame:
+    rolling_vol_means = (
+        risk_object
+        .get_var()
+        .to_standard_deviation()
+        .to_frame()
+        .rolling(window=DAYS_IN_YEAR*10, min_periods=DAYS_IN_YEAR)
+        .mean())
+    
+    relative_vol = (
+        risk_object
+        .get_var()
+        .to_standard_deviation()
+        .to_frame()
+        .div(rolling_vol_means)
+    )
+
+    percentiles = relative_vol.apply(lambda x : x.rank() / x.count(), axis=0)
+
+    percentiles = percentiles.where(pd.notnull(percentiles), 0)
+
+    percentiles = percentiles.astype(float)
+
+    multipliers = (2 - 1.5 * percentiles).ewm(span=10).mean()
+
+    return multipliers
+
+df = pd.DataFrame({
+    'A': [1, 2, 3],
+    'B': [6, 5, 2],
+    'C': [7, 5, 1]
+})
+
+df = df.rolling(window=3, min_periods=1).mean()
+
+# rolling_vol_means = x.rolling(window=3, min_periods=1).mean()
+
+# relative_vol = x.div(rolling_vol_means)
+
+percentiles = df.apply(lambda x : x.rank() / x.count(), axis=0)
+
+percentiles = percentiles.where(pd.notnull(percentiles), 1.0)
+
+percentiles = percentiles.astype(float)
+
+print(percentiles)
