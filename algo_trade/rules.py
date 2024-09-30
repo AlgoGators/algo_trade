@@ -1,6 +1,7 @@
 from typing import Callable, TypeVar
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd # type: ignore
 
 from algo_trade.instrument import Future, Instrument
@@ -79,110 +80,128 @@ def equal_weight(
 
     return weights
 
-
-
-def scaled_forecast(
-        crossover : tuple[int, int],
-        instruments : list[Future],
-        risk_object : RiskMeasure[Future]
-    ) -> pd.DataFrame:
-
-    trend = pd.DataFrame(dtype=float)
-    for instrument in instruments:
-        trend[instrument.symbol] = (
-            instrument.front
-            .backadjusted
-            .ewm(span=crossover[0], min_periods=crossover[0], adjust=False)
-            .mean()
-            - instrument.front
-            .backadjusted
-            .ewm(span=crossover[1], min_periods=crossover[1], adjust=False)
-            .mean()
-        )
-
-    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
-    std.annualize(inplace=True)
-
-    for instrument in instruments:
-        trend[instrument.symbol] /= (
-            std[instrument.symbol]
-            * instrument.front.close
-        )
+def raw_forecast(
+    n : int,
+    future : Future
+    ) -> npt.NDArray[np.float64]:
     
-    forecast_scalar = 10 / trend.abs().mean().mean()
+    prices = np.array(future.front.backadjusted)
+    N = len(prices)
 
-    trend *= forecast_scalar
+    weight_matrix_n : np.ndarray = np.zeros((N, N))
+    weight_matrix_4n : np.ndarray = np.zeros((N, N))
 
-def trend_signals(
-        instruments: list[Future],
-        risk_object : RiskMeasure[Future]
-    ) -> pd.DataFrame:
+    for i in range(N):
+        weight_matrix_n[i, i] = (2 / (n + 1)) ** i * (1 - (2 / (n + 1))) 
+        weight_matrix_4n[i, i] = (2 / (4 * n + 1)) ** i * (1 - (2 / (4 * n + 1))) 
+    
+    y_n = prices @ weight_matrix_n
+    y_4n = prices @ weight_matrix_4n
 
-    forecasts: list[pd.Series] = []
-    for instrument in instruments:
-        trend = pd.DataFrame(dtype=float)
+    return np.array(y_n - y_4n)
 
-        crossovers = [(2, 8), (4, 16), (8, 32), (16, 64), (32, 128), (64, 256)]
+# def scaled_forecast(
+#         crossover : tuple[int, int],
+#         instruments : list[Future],
+#         risk_object : RiskMeasure[Future]
+#     ) -> pd.DataFrame:
 
-        # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
-        for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] = (
-                instrument.front
-                .backadjusted
-                .ewm(span=t1, min_periods=2, adjust=False)
-                .mean()
-                - instrument.front
-                .backadjusted
-                .ewm(span=t2, min_periods=2, adjust=False)
-                .mean()
-            )
+#     trend = pd.DataFrame(dtype=float)
+#     for instrument in instruments:
+#         trend[instrument.symbol] = (
+#             instrument.front
+#             .backadjusted
+#             .ewm(span=crossover[0], min_periods=crossover[0], adjust=False)
+#             .mean()
+#             - instrument.front
+#             .backadjusted
+#             .ewm(span=crossover[1], min_periods=crossover[1], adjust=False)
+#             .mean()
+#         )
 
-        std = risk_object.get_var().to_standard_deviation()
-        std.annualize(inplace=True)
+#     std : StandardDeviation = risk_object.get_var().to_standard_deviation()
+#     std.annualize(inplace=True)
 
-        # Calculate the risk adjusted forecasts
-        for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] /= (
-                std[instrument.get_symbol()]
-                * instrument.front.close
-            )
+#     for instrument in instruments:
+#         trend[instrument.symbol] /= (
+#             std[instrument.symbol]
+#             * instrument.front.close
+#         )
+    
+#     forecast_scalar = 10 / trend.abs().mean().mean()
 
-        # Scale the crossovers by the absolute mean of all previous crossovers
-        scalar_dict = {}
-        for t1, t2 in crossovers:
-            scalar_dict[t1] = 10 / trend[f"{t1}-{t2}"].abs().mean()
+#     trend *= forecast_scalar
 
-        for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"] * scalar_dict[t1]
+# def trend_signals(
+#         instruments: list[Future],
+#         risk_object : RiskMeasure[Future]
+#     ) -> pd.DataFrame:
 
-        # Clip the scaled crossovers to -20, 20
-        for t1, t2 in crossovers:
-            trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"].clip(-20, 20)
+#     forecasts: list[pd.Series] = []
+#     for instrument in instruments:
+#         trend = pd.DataFrame(dtype=float)
 
-        trend.Forecast = 0.0
+#         crossovers = [(2, 8), (4, 16), (8, 32), (16, 64), (32, 128), (64, 256)]
 
-        n = len(crossovers)
-        weights = {64: 1 / n, 32: 1 / n, 16: 1 / n, 8: 1 / n, 4: 1 / n, 2: 1 / n}
+#         # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
+#         for t1, t2 in crossovers:
+#             trend[f"{t1}-{t2}"] = (
+#                 instrument.front
+#                 .backadjusted
+#                 .ewm(span=t1, min_periods=2, adjust=False)
+#                 .mean()
+#                 - instrument.front
+#                 .backadjusted
+#                 .ewm(span=t2, min_periods=2, adjust=False)
+#                 .mean()
+#             )
 
-        for t1, t2 in crossovers:
-            trend.Forecast += trend[f"{t1}-{t2}"] * weights[t1]
+#         std = risk_object.get_var().to_standard_deviation()
+#         std.annualize(inplace=True)
 
-        fdm = 1.35
-        trend.Forecast = trend.Forecast * fdm
+#         # Calculate the risk adjusted forecasts
+#         for t1, t2 in crossovers:
+#             trend[f"{t1}-{t2}"] /= (
+#                 std[instrument.get_symbol()]
+#                 * instrument.front.close
+#             )
 
-        # # Clip the final forecast to -20, 20
-        # trend.Forecast = trend.Forecast.clip(-20, 20)
+#         # Scale the crossovers by the absolute mean of all previous crossovers
+#         scalar_dict = {}
+#         for t1, t2 in crossovers:
+#             scalar_dict[t1] = 10 / trend[f"{t1}-{t2}"].abs().mean()
 
-        forecasts.append((trend.Forecast / 10).rename(instrument.name))
+#         for t1, t2 in crossovers:
+#             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"] * scalar_dict[t1]
 
-    df = pd.DataFrame()
-    for series in forecasts:
-        if df.empty:
-            df = series.to_frame()
-        else:
-            df = df.join(series.to_frame(), how="outer")
+#         # Clip the scaled crossovers to -20, 20
+#         for t1, t2 in crossovers:
+#             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"].clip(-20, 20)
 
-    return df
+#         trend.Forecast = 0.0
+
+#         n = len(crossovers)
+#         weights = {64: 1 / n, 32: 1 / n, 16: 1 / n, 8: 1 / n, 4: 1 / n, 2: 1 / n}
+
+#         for t1, t2 in crossovers:
+#             trend.Forecast += trend[f"{t1}-{t2}"] * weights[t1]
+
+#         fdm = 1.35
+#         trend.Forecast = trend.Forecast * fdm
+
+#         # # Clip the final forecast to -20, 20
+#         # trend.Forecast = trend.Forecast.clip(-20, 20)
+
+#         forecasts.append((trend.Forecast / 10).rename(instrument.name))
+
+#     df = pd.DataFrame()
+#     for series in forecasts:
+#         if df.empty:
+#             df = series.to_frame()
+#         else:
+#             df = df.join(series.to_frame(), how="outer")
+
+#     return df
 
 def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
