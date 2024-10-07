@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script defer src="dashboard.js"></script>
+</head>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+
+    <!-- Container -->
+    <div class="container mx-auto my-10 p-5 bg-white shadow-lg rounded-lg">
+
+        <!-- Header Section -->
+        <div class="flex justify-between items-center pb-5 border-b">
+            <h1 class="text-3xl font-bold">Portfolio</h1>
+            <div>
+                <p class="text-lg">Net Liquidation Value: <span class="font-semibold text-green-500">$1,069,909</span></p>
+                <p class="text-lg">Daily P&L: <span class="font-semibold text-green-500">$33 0.00%</span></p>
+            </div>
+        </div>
+
+        <!-- Positions Table -->
+        <div class="my-6">
+            <h2 class="text-xl font-semibold pb-4">Positions</h2>
+            <table class="min-w-full bg-white border">
+                <thead>
+                    <tr>
+                        <th class="py-2">Instrument</th>
+                        <th class="py-2">Last</th>
+                        <th class="py-2">Change</th>
+                        <th class="py-2">Position</th>
+                        <th class="py-2">P&L</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="text-center border-t">
+                        <td class="py-2">CAD CME</td>
+                        <td class="py-2">0.73655</td>
+                        <td class="py-2 text-red-500">-0.00050</td>
+                        <td class="py-2">-1</td>
+                        <td class="py-2 text-red-500">-26.13</td>
+                    </tr>
+                    <tr class="text-center border-t">
+                        <td class="py-2">M6A CME</td>
+                        <td class="py-2">0.68110</td>
+                        <td class="py-2 text-green-500">+0.00170</td>
+                        <td class="py-2">1</td>
+                        <td class="py-2 text-red-500">-0.71</td>
+                    </tr>
+                    <tr class="text-center border-t">
+                        <td class="py-2">M6B CME</td>
+                        <td class="py-2">4</td>
+                        <td class="py-2 text-green-500">+9.92</td>
+                    </tr>
+                    <!-- Add more rows as necessary -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Cash Balance -->
+        <div class="my-6">
+            <h2 class="text-xl font-semibold pb-4">Cash Balances</h2>
+            <table class="min-w-full bg-white border">
+                <thead>
+                    <tr>
+                        <th class="py-2">USD Cash</th>
+                        <th class="py-2">Market Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="text-center border-t">
+                        <td class="py-2">1.07M</td>
+                        <td class="py-2">1.07M</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</body>
+</html>
