@@ -1,16 +1,15 @@
-from typing import TypeVar, Generic
-
-import pandas as pd
 from abc import ABC
-from typing import Callable
-from dotenv import load_dotenv
 from decimal import Decimal
+from dotenv import load_dotenv
+from typing import TypeVar, Generic, Callable, Optional
+
+import pandas as pd # type: ignore
 
 # Internal
-from algo_trade.strategy import Strategy
 from algo_trade.instrument import Instrument, SecurityType
 from algo_trade.pnl import PnL
 from algo_trade.risk_measures import RiskMeasure
+from algo_trade.strategy import Strategy
 from algo_trade.ib_utils.account import Account, Position
 from algo_trade.ib_utils._contract import Contract
 
@@ -19,12 +18,20 @@ load_dotenv()
 T = TypeVar('T', bound=Instrument)
 
 class TradingSystem(ABC, Generic[T]):
-    def __init__(self):
-        self.instruments : list[T] = None
-        self.weighted_strategies : list[tuple[float, Strategy]]
-        self.capital : float
-        self.risk_object : RiskMeasure
-        self.trading_system_rules : list[Callable] = []
+    def __init__(
+            self,
+            instruments : Optional[list[T]] = None,
+            weighted_strategies : Optional[list[tuple[float, Strategy]]] = None,
+            capital : Optional[float] = None,
+            risk_object : Optional[RiskMeasure] = None,
+            trading_system_rules : Optional[list[Callable]] = None
+        ) -> None:
+
+        self.instruments : Optional[list[T]] = instruments
+        self.weighted_strategies : Optional[list[tuple[float, Strategy]]] = weighted_strategies
+        self.capital : Optional[float] = capital
+        self.risk_object : Optional[RiskMeasure] = risk_object
+        self.trading_system_rules : Optional[list[Callable]] = trading_system_rules
 
     @property
     def security_types(self) -> pd.DataFrame: 
@@ -34,11 +41,12 @@ class TradingSystem(ABC, Generic[T]):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
             
-            security_types = {}
+            security_types : dict[str, SecurityType] = {}
             for instrument in self.instruments:
                 security_types[instrument.name] = instrument.security_type
 
-            self._security_types : pd.DataFrame = pd.DataFrame(security_types, index=[0])
+            self._security_types : pd.DataFrame = pd.DataFrame(
+                security_types, index=[0], dtype=object)
 
         return self._security_types
 
@@ -48,7 +56,7 @@ class TradingSystem(ABC, Generic[T]):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
 
-            multipliers = {}
+            multipliers : dict[str, float] = {}
             for instrument in self.instruments:
                 multipliers[instrument.name] = instrument.multiplier
 
@@ -62,7 +70,7 @@ class TradingSystem(ABC, Generic[T]):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
 
-            exchanges = {}
+            exchanges : dict[str, str] = {}
             for instrument in self.instruments:
                 exchanges[instrument.name] = instrument.exchange
 
@@ -76,7 +84,7 @@ class TradingSystem(ABC, Generic[T]):
             if self.instruments is None:
                 raise ValueError("No instruments in the TradingSystem")
 
-            currencies = {}
+            currencies : dict[str, str] = {}
             for instrument in self.instruments:
                 currencies[instrument.name] = instrument.currency
 
@@ -87,33 +95,44 @@ class TradingSystem(ABC, Generic[T]):
     @property
     def prices(self) -> pd.DataFrame:
         if not hasattr(self, '_prices'):
-            self._prices = pd.DataFrame()
-            instrument : Instrument
+            if self.instruments is None:
+                raise ValueError("No instruments in the TradingSystem")
+
+            self._prices : pd.DataFrame = pd.DataFrame(dtype=float)
             for instrument in self.instruments:
                 if self._prices.empty:
                     self._prices = instrument.price.to_frame(instrument.name)
                 else:
-                    self._prices = self._prices.join(instrument.price.to_frame(instrument.name), how='outer')
+                    self._prices = self._prices.join(
+                        instrument.price.to_frame(instrument.name),
+                        how='outer'
+                    )
 
         return self._prices
 
     @property
     def positions(self) -> pd.DataFrame:
         if not hasattr(self, '_positions'):
-            self._positions = pd.DataFrame()
+            if self.weighted_strategies is None:
+                raise ValueError("No strategies in the TradingSystem")
+
+            self._positions : pd.DataFrame = pd.DataFrame(dtype=float)
             for weight, strategy in self.weighted_strategies:
-                df = strategy.positions * weight
+                df : pd.DataFrame = strategy.positions * weight
                 self._positions = df if self._positions.empty else self._positions + df
 
             self._positions /= self.multipliers.iloc[0] # Divide by multipliers
 
-            for rule in self.trading_system_rules:
-                self._positions = rule(self)
+            if self.trading_system_rules is not None:
+                for rule in self.trading_system_rules:
+                    self._positions = rule(self)
 
         return self._positions
     
     @positions.setter
-    def positions(self, value):
+    def positions(self, value : pd.DataFrame) -> None:
+        if not isinstance(value, pd.DataFrame):
+            raise ValueError("Positions must be a pandas DataFrame")
         self._positions = value
 
     @property
@@ -121,9 +140,13 @@ class TradingSystem(ABC, Generic[T]):
         return self.positions * self.prices * self.multipliers.iloc[0]
 
     @property
-    def PnL(self) -> PnL: return PnL(self.positions, self.prices, self.capital, self.multipliers)
+    def PnL(self) -> PnL:
+        if self.capital is None:
+            raise ValueError("No capital in the TradingSystem")
 
-    def __getitem__(self, key) -> Account:
+        return PnL(self.positions, self.prices, self.capital, self.multipliers)
+
+    def __getitem__(self, key : int) -> Account:
         positions : pd.DataFrame = self.positions.iloc[[key]]
 
         ibkr_positions : list[Position] = [
@@ -135,14 +158,16 @@ class TradingSystem(ABC, Generic[T]):
 
         return Account(ibkr_positions)
 
-    def __sub__(self, other) -> 'TradingSystem':
+    def __sub__(self, other : 'TradingSystem') -> 'TradingSystem':
         if not isinstance(other, TradingSystem):
             raise ValueError("Can only subtract TradingSystem from TradingSystem")
+
         self.positions = self.positions - other.positions
         return self
     
-    def __add__(self, other) -> 'TradingSystem':
+    def __add__(self, other : 'TradingSystem') -> 'TradingSystem':
         if not isinstance(other, TradingSystem):
             raise ValueError("Can only add TradingSystem to TradingSystem")
+
         self.positions = self.positions + other.positions
         return self

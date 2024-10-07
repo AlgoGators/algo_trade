@@ -1,14 +1,15 @@
-import pandas as pd
-import numpy as np
 import datetime
+from functools import reduce
 import logging
 from typing import Callable
-from functools import reduce
 
-from algo_trade.trading_system import TradingSystem
+import numpy as np
+import pandas as pd # type: ignore
+
 from algo_trade.instrument import Future
 from algo_trade.risk_logging import CsvFormatter
 from algo_trade.risk_measures import Covariance
+from algo_trade.trading_system import TradingSystem
 
 logging.basicConfig(
     level=logging.INFO,
