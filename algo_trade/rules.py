@@ -100,6 +100,61 @@ def raw_forecast(
 
     return np.array(y_n - y_4n)
 
+def volatility_normalization(
+    prices : pd.DataFrame,
+    risk_object : RiskMeasure[Future]
+    ) -> pd.DataFrame:
+
+    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
+    std.annualize(inplace=True)
+
+    price_std = std.to_frame().__mul__(prices)
+
+    return 1 / price_std
+
+def regime_scaling(
+    n : int,
+    risk_object : RiskMeasure[Future]
+    ) -> pd.DataFrame:
+    rolling_vol_means = (
+        risk_object
+        .get_var()
+        .to_standard_deviation()
+        .to_frame()
+        .rolling(window=DAYS_IN_YEAR*10, min_periods=DAYS_IN_YEAR)
+        .mean())
+    
+    relative_vol = (
+        risk_object
+        .get_var()
+        .to_standard_deviation()
+        .to_frame()
+        .div(rolling_vol_means)
+    )
+
+    quantiles = relative_vol.apply(lambda x : x.rank() / x.count(), axis=0)
+
+    quantiles = quantiles.where(pd.notnull(quantiles), 0)
+
+    quantiles = quantiles.astype(float)
+
+    N = len(quantiles)
+
+    weight_matrix_n : np.ndarray = np.zeros((N, N))
+
+    for i in range(N):
+        weight_matrix_n[i, i] = (2 / (n + 1)) ** i * (1 - (2 / (n + 1)))
+
+    multipliers = 2 * np.ones(N) - 1.5 * quantiles @ weight_matrix_n
+
+    return multipliers
+
+def speed_normalization(
+    forecast : pd.DataFrame,
+    ) -> pd.DataFrame:
+
+    return forecast.div(forecast.abs().mean().mean())
+
 # def scaled_forecast(
 #         crossover : tuple[int, int],
 #         instruments : list[Future],
