@@ -155,6 +155,29 @@ def speed_normalization(
 
     return forecast.div(forecast.abs().mean().mean())
 
+def fdm(
+    weights : pd.DataFrame,
+    forecasts : list[pd.DataFrame]
+    ) -> float:
+
+    if not forecasts:
+        raise ValueError("At least one forecast is required")
+
+    flattened_forecasts = [forecast.values.flatten() for forecast in forecasts]
+
+    forecast_df = pd.DataFrame(np.column_stack(flattened_forecasts))
+
+    correlation_matrix = forecast_df.corr().clip(lower=0)
+    
+    FDM : float = 1 / np.sqrt(weights.values @ correlation_matrix.values @ weights.values.T)
+
+    return FDM
+
+
+
+
+
+
 # def scaled_forecast(
 #         crossover : tuple[int, int],
 #         instruments : list[Future],
