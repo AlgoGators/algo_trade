@@ -80,51 +80,65 @@ def equal_weight(
 
     return weights
 
-def raw_forecast(
-    n : int,
-    future : Future
-    ) -> npt.NDArray[np.float64]:
-    
-    prices = np.array(future.front.backadjusted)
-    N = len(prices)
-
+def exponential_weight_matrix(n : int, N : int) -> np.ndarray:
     weight_matrix_n : np.ndarray = np.zeros((N, N))
-    weight_matrix_4n : np.ndarray = np.zeros((N, N))
 
     for i in range(N):
-        weight_matrix_n[i, i] = (2 / (n + 1)) ** i * (1 - (2 / (n + 1))) 
-        weight_matrix_4n[i, i] = (2 / (4 * n + 1)) ** i * (1 - (2 / (4 * n + 1))) 
-    
-    y_n = prices @ weight_matrix_n
-    y_4n = prices @ weight_matrix_4n
+        for j in range(N):
+            if i >= j:
+                weight_matrix_n[i, j] = (2 / (n + 1)) ** (i - j) * (2 / (n + 1))
 
-    return np.array(y_n - y_4n)
+    return weight_matrix_n
 
-def volatility_normalization(
-    prices : pd.DataFrame,
+def raw_forecast(
+    n : int,
+    futures : list[Future],
     risk_object : RiskMeasure[Future]
-    ) -> pd.DataFrame:
+    ) -> npt.NDArray[np.float64]:
 
     std : StandardDeviation = risk_object.get_var().to_standard_deviation()
     std.annualize(inplace=True)
 
-    price_std = std.to_frame().__mul__(prices)
+    normalized_trend = pd.DataFrame(dtype=np.float64, index=std.index) #np.zeros((len(futures), len(futures[0].front.backadjusted)))
 
-    return 1 / price_std
+    for future in futures:
+        std_price_intersection = std[future.name].index.intersection(future.front.backadjusted.index)
+        prices = np.array(future.front.backadjusted.loc[std_price_intersection])
+        std_array = np.array(std[future.name].loc[std_price_intersection])
+
+        N = len(prices)
+
+        weight_matrix_n : np.ndarray = exponential_weight_matrix(n, N) #np.zeros((N, N))
+        weight_matrix_4n : np.ndarray = exponential_weight_matrix(4*n, N) #np.zeros((N, N))
+
+        y_n = prices @ weight_matrix_n
+        y_4n = prices @ weight_matrix_4n
+
+        trend : np.ndarray = np.array(y_n - y_4n)
+
+        normalized_for_vol = trend / np.array(std_array * prices)
+
+        normalized_trend.loc[std_price_intersection, future.name] = normalized_for_vol
+
+    normalized_trend_bfill_np : np.ndarray = normalized_trend.bfill().to_numpy(np.float64)
+
+    return normalized_trend_bfill_np
 
 def regime_scaling(
     n : int,
     risk_object : RiskMeasure[Future]
-    ) -> pd.DataFrame:
-    rolling_vol_means = (
+    ) -> npt.NDArray[np.float64]:
+
+    rolling_vol_means : pd.DataFrame = (
         risk_object
         .get_var()
         .to_standard_deviation()
         .to_frame()
         .rolling(window=DAYS_IN_YEAR*10, min_periods=DAYS_IN_YEAR)
-        .mean())
-    
-    relative_vol = (
+        .mean()
+    )
+
+    relative_vol : pd.DataFrame = (
         risk_object
         .get_var()
         .to_standard_deviation()
@@ -132,154 +146,77 @@ def regime_scaling(
         .div(rolling_vol_means)
     )
 
-    quantiles = relative_vol.apply(lambda x : x.rank() / x.count(), axis=0)
+    quantiles : pd.DataFrame = relative_vol.apply(lambda x : x.rank() / x.count(), axis=0)
 
     quantiles = quantiles.where(pd.notnull(quantiles), 0)
 
-    quantiles = quantiles.astype(float)
+    quantiles = quantiles.astype(np.float64)
 
-    N = len(quantiles)
+    N : int = len(quantiles)
 
-    weight_matrix_n : np.ndarray = np.zeros((N, N))
+    weight_matrix_n : np.ndarray = exponential_weight_matrix(n, N)
 
-    for i in range(N):
-        weight_matrix_n[i, i] = (2 / (n + 1)) ** i * (1 - (2 / (n + 1)))
+    quantiles_np = quantiles.to_numpy(np.float64)
 
-    multipliers = 2 * np.ones(N) - 1.5 * quantiles @ weight_matrix_n
+    smoothed_quantiles = weight_matrix_n @ quantiles_np
+
+    multipliers : np.ndarray = 2 * np.ones((N, 1)) - 1.5 * smoothed_quantiles
 
     return multipliers
 
-def speed_normalization(
-    forecast : pd.DataFrame,
-    ) -> pd.DataFrame:
-
-    return forecast.div(forecast.abs().mean().mean())
-
 def fdm(
-    weights : pd.DataFrame,
+    weights : np.ndarray,
     forecasts : list[pd.DataFrame]
     ) -> float:
 
     if not forecasts:
         raise ValueError("At least one forecast is required")
 
-    flattened_forecasts = [forecast.values.flatten() for forecast in forecasts]
+    flattened_forecasts = [forecast.to_numpy(dtype=np.float64).flatten() for forecast in forecasts]
 
     forecast_df = pd.DataFrame(np.column_stack(flattened_forecasts))
 
     correlation_matrix = forecast_df.corr().clip(lower=0)
-    
-    FDM : float = 1 / np.sqrt(weights.values @ correlation_matrix.values @ weights.values.T)
+
+    FDM : float = 1 / np.sqrt(weights.T @ correlation_matrix.to_numpy(dtype=np.float64) @ weights).item()
 
     return FDM
 
+def regime_scaled_trend(speed : int, risk_object : RiskMeasure, futures : list[Future]) -> pd.DataFrame:
+    raw_F : np.ndarray = raw_forecast(speed, futures, risk_object)
+    regime_scalar : np.ndarray = regime_scaling(10, risk_object)
 
+    forecast : pd.DataFrame = pd.DataFrame(raw_F * regime_scalar, columns=[future.name for future in futures])
+    normalized_forecast : pd.DataFrame = forecast.div(forecast.abs().mean().mean())
 
+    return normalized_forecast
 
+def trend_signals(
+        trend_function : Callable[[int, RiskMeasure, list[Future]], pd.DataFrame],
+        risk_object : RiskMeasure[Future],
+        futures : list[Future],
+        speeds : list[int],
+        bounds : tuple[int, int] = (-2, 2)
+    ) -> pd.DataFrame:
 
+    forecasts : list[pd.DataFrame] = [trend_function(speed, risk_object, futures).clip(bounds[0], bounds[1]) for speed in speeds]
 
-# def scaled_forecast(
-#         crossover : tuple[int, int],
-#         instruments : list[Future],
-#         risk_object : RiskMeasure[Future]
-#     ) -> pd.DataFrame:
+    weights : np.ndarray = np.ones((len(speeds), 1), dtype=np.float64) / len(forecasts)
 
-#     trend = pd.DataFrame(dtype=float)
-#     for instrument in instruments:
-#         trend[instrument.symbol] = (
-#             instrument.front
-#             .backadjusted
-#             .ewm(span=crossover[0], min_periods=crossover[0], adjust=False)
-#             .mean()
-#             - instrument.front
-#             .backadjusted
-#             .ewm(span=crossover[1], min_periods=crossover[1], adjust=False)
-#             .mean()
-#         )
+    FDM : float = fdm(weights, forecasts)
 
-#     std : StandardDeviation = risk_object.get_var().to_standard_deviation()
-#     std.annualize(inplace=True)
+    average_forecasts = pd.DataFrame(0, index=forecasts[0].index, columns=[future.name for future in futures])
 
-#     for instrument in instruments:
-#         trend[instrument.symbol] /= (
-#             std[instrument.symbol]
-#             * instrument.front.close
-#         )
+    for forecast in forecasts:
+        average_forecasts += forecast
+
+    average_forecasts /= len(forecasts)
+
+    trend_signals = (FDM * average_forecasts).clip(bounds[0], bounds[1])
+
     
-#     forecast_scalar = 10 / trend.abs().mean().mean()
 
-#     trend *= forecast_scalar
-
-# def trend_signals(
-#         instruments: list[Future],
-#         risk_object : RiskMeasure[Future]
-#     ) -> pd.DataFrame:
-
-#     forecasts: list[pd.Series] = []
-#     for instrument in instruments:
-#         trend = pd.DataFrame(dtype=float)
-
-#         crossovers = [(2, 8), (4, 16), (8, 32), (16, 64), (32, 128), (64, 256)]
-
-#         # Calculate the exponential moving averages crossovers and store them in the trend dataframe for t1, t2 in crossovers: trend[f"{t1}-{t2}"] = data["Close"].ewm(span=t1, min_periods=2).mean() - data["Close"].ewm(span=t2, min_periods=2).mean()
-#         for t1, t2 in crossovers:
-#             trend[f"{t1}-{t2}"] = (
-#                 instrument.front
-#                 .backadjusted
-#                 .ewm(span=t1, min_periods=2, adjust=False)
-#                 .mean()
-#                 - instrument.front
-#                 .backadjusted
-#                 .ewm(span=t2, min_periods=2, adjust=False)
-#                 .mean()
-#             )
-
-#         std = risk_object.get_var().to_standard_deviation()
-#         std.annualize(inplace=True)
-
-#         # Calculate the risk adjusted forecasts
-#         for t1, t2 in crossovers:
-#             trend[f"{t1}-{t2}"] /= (
-#                 std[instrument.get_symbol()]
-#                 * instrument.front.close
-#             )
-
-#         # Scale the crossovers by the absolute mean of all previous crossovers
-#         scalar_dict = {}
-#         for t1, t2 in crossovers:
-#             scalar_dict[t1] = 10 / trend[f"{t1}-{t2}"].abs().mean()
-
-#         for t1, t2 in crossovers:
-#             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"] * scalar_dict[t1]
-
-#         # Clip the scaled crossovers to -20, 20
-#         for t1, t2 in crossovers:
-#             trend[f"{t1}-{t2}"] = trend[f"{t1}-{t2}"].clip(-20, 20)
-
-#         trend.Forecast = 0.0
-
-#         n = len(crossovers)
-#         weights = {64: 1 / n, 32: 1 / n, 16: 1 / n, 8: 1 / n, 4: 1 / n, 2: 1 / n}
-
-#         for t1, t2 in crossovers:
-#             trend.Forecast += trend[f"{t1}-{t2}"] * weights[t1]
-
-#         fdm = 1.35
-#         trend.Forecast = trend.Forecast * fdm
-
-#         # # Clip the final forecast to -20, 20
-#         # trend.Forecast = trend.Forecast.clip(-20, 20)
-
-#         forecasts.append((trend.Forecast / 10).rename(instrument.name))
-
-#     df = pd.DataFrame()
-#     for series in forecasts:
-#         if df.empty:
-#             df = series.to_frame()
-#         else:
-#             df = df.join(series.to_frame(), how="outer")
-
-#     return df
+    return trend_signals
 
 def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
@@ -302,50 +239,3 @@ def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     IDMs = IDMs.bfill()
 
     return pd.concat([IDMs.rename(instrument_name) for instrument_name in returns.columns], axis=1)
-
-def volatility_regime_scaling(risk_object : RiskMeasure) -> pd.DataFrame:
-    rolling_vol_means = (
-        risk_object
-        .get_var()
-        .to_standard_deviation()
-        .to_frame()
-        .rolling(window=DAYS_IN_YEAR*10, min_periods=DAYS_IN_YEAR)
-        .mean())
-    
-    relative_vol = (
-        risk_object
-        .get_var()
-        .to_standard_deviation()
-        .to_frame()
-        .div(rolling_vol_means)
-    )
-
-    percentiles = relative_vol.apply(lambda x : x.rank() / x.count(), axis=0)
-
-    percentiles = percentiles.where(pd.notnull(percentiles), 0)
-
-    percentiles = percentiles.astype(float)
-
-    multipliers = (2 - 1.5 * percentiles).ewm(span=10).mean()
-
-    return multipliers
-
-df = pd.DataFrame({
-    'A': [1, 2, 3],
-    'B': [6, 5, 2],
-    'C': [7, 5, 1]
-})
-
-df = df.rolling(window=3, min_periods=1).mean()
-
-# rolling_vol_means = x.rolling(window=3, min_periods=1).mean()
-
-# relative_vol = x.div(rolling_vol_means)
-
-percentiles = df.apply(lambda x : x.rank() / x.count(), axis=0)
-
-percentiles = percentiles.where(pd.notnull(percentiles), 1.0)
-
-percentiles = percentiles.astype(float)
-
-print(percentiles)
