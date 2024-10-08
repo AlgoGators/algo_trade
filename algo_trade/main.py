@@ -16,7 +16,7 @@ from algo_trade.dyn_opt import dyn_opt
 from algo_trade.instrument import Future, SecurityType, initialize_instruments, fetch_futures_data
 from algo_trade.risk_limits import portfolio_multiplier, position_limit
 from algo_trade.risk_measures import CRV, RiskMeasure
-from algo_trade.rules import capital_scaling, equal_weight, IDM, risk_parity, trend_signals
+from algo_trade.rules import capital_scaling, equal_weight, IDM, risk_parity, trend_signals, regime_scaled_trend
 from algo_trade.strategy import FutureDataFetcher, Strategy
 from algo_trade.trading_system import TradingSystem
 from algo_trade.update_account import update_account
@@ -40,7 +40,7 @@ class TrendFollowing(Strategy[Future]):
         self.risk_object = risk_object
         self.rules = [
             partial(risk_parity, risk_object=self.risk_object),
-            partial(trend_signals, instruments=instruments, risk_object=self.risk_object),
+            partial(trend_signals, trend_function=regime_scaled_trend, risk_object=self.risk_object, futures=self.instruments, speeds=[2, 4, 8, 16, 32, 64]),
             partial(equal_weight, instruments=instruments),
             partial(capital_scaling, instruments=instruments, capital=capital),
             partial(IDM, risk_object=self.risk_object)
