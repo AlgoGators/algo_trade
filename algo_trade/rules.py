@@ -90,14 +90,49 @@ def exponential_weight_matrix(n : int, N : int) -> np.ndarray:
 
     return weight_matrix_n
 
+def forecast(
+    speed : int,
+    futures : list[Future],
+    risk_object : RiskMeasure[Future]) -> npt.NDArray[np.float64]:
+
+    std : pd.DataFrame = risk_object.get_var().to_standard_deviation().annualize().to_frame()
+    prices : pd.DataFrame = pd.DataFrame()
+
+    for future in futures:
+        if prices.empty:
+            prices = future.front.backadjusted
+        else:
+            prices = prices.join(future.front.backadjusted)
+
+    prices.dropna(inplace=True)
+    std.dropna(inplace=True)
+
+    prices_matrix : np.ndarray = prices.to_numpy()
+    std_matrix : np.ndarray = std.to_numpy()
+
+    std_price = np.array(prices_matrix * std_matrix)
+
+    N = len(prices)
+
+    weight_matrix_n = exponential_weight_matrix(speed, N)
+    weight_matrix_4n = exponential_weight_matrix(4 * speed, N)
+
+    y_n = prices_matrix @ weight_matrix_n
+    y_4n = prices_matrix @ weight_matrix_4n
+
+    trend = np.array(y_n - y_4n)
+
+    normalized_trend = trend / std_price
+
+    return normalized_trend
+
 def raw_forecast(
     n : int,
     futures : list[Future],
     risk_object : RiskMeasure[Future]
     ) -> npt.NDArray[np.float64]:
 
-    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
-    std.annualize(inplace=True)
+    std : StandardDeviation = risk_object.get_var().to_standard_deviation().annualize()
 
     normalized_trend = pd.DataFrame(dtype=np.float64, index=std.index) #np.zeros((len(futures), len(futures[0].front.backadjusted)))
 
@@ -199,6 +234,18 @@ def trend_signals(
         bounds : tuple[int, int] = (-2, 2)
     ) -> pd.DataFrame:
 
+    annualized_std : pd.DataFrame = risk_object.get_var().to_standard_deviation().annualize().to_frame()
+
+    prices : pd.DataFrame = pd.DataFrame()
+
+    for future in futures:
+        if prices.empty:
+            prices = future.front.get_close().to_frame(future.name)
+        else:
+            prices = prices.join(future.front.get_close().to_frame(future.name), how="outer")
+
+
+
     forecasts : list[pd.DataFrame] = [trend_function(speed, risk_object, futures).clip(bounds[0], bounds[1]) for speed in speeds]
 
     weights : np.ndarray = np.ones((len(speeds), 1), dtype=np.float64) / len(forecasts)
@@ -213,8 +260,6 @@ def trend_signals(
     average_forecasts /= len(forecasts)
 
     trend_signals = (FDM * average_forecasts).clip(bounds[0], bounds[1])
-
-    
 
     return trend_signals
 
