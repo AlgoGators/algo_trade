@@ -49,22 +49,16 @@ class StandardDeviation(pd.DataFrame):
         self.__is_annualized : bool = False
 
     def annualize(
-            self,
-            inplace : Optional[bool] = False
-        ) -> Optional[Self]:
+            self
+        ) -> Self:
 
         if self.__is_annualized:
             return self
 
         factor : float = DAYS_IN_YEAR ** 0.5
 
-        if inplace:
-            self *= factor
-            self.__is_annualized = True
-            return None
-
-        new = StandardDeviation(self)
-        new.annualize(inplace=True)
+        new = StandardDeviation(self * factor)
+        new.__is_annualized = True
         return new
 
     def __mul__(self, other : float | pd.DataFrame) -> 'StandardDeviation':
@@ -86,22 +80,16 @@ class Variance(pd.DataFrame):
         self.__is_annualized = False
 
     def annualize(
-            self,
-            inplace : Optional[bool] = False
-        ) -> Optional[Self]:
+            self
+        ) -> Self:
 
         if self.__is_annualized:
             return self
 
         factor : float = DAYS_IN_YEAR
 
-        if inplace:
-            self *= factor
-            self.__is_annualized = True
-            return None
-
-        new : Variance = Variance(self)
-        new.annualize(inplace=True)
+        new : Variance = Variance(self * factor)
+        new.__is_annualized = True
         return new
 
     def __mul__(self, other : float | pd.DataFrame) -> pd.DataFrame:
