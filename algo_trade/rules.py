@@ -1,3 +1,4 @@
+from functools import cache
 from typing import Callable, TypeVar
 
 import numpy as np
@@ -46,8 +47,7 @@ def risk_parity(
     if risk_object.tau is None:
         raise ValueError("Risk Measure object must have a tau value")
 
-    std : StandardDeviation = risk_object.get_var().to_standard_deviation()
-    std.annualize(inplace=True)
+    std : StandardDeviation = risk_object.get_var().to_standard_deviation().annualize()
 
     return risk_object.tau / std
 
@@ -80,6 +80,7 @@ def equal_weight(
 
     return weights
 
+@cache
 def exponential_weight_matrix(n : int, N : int) -> np.ndarray:
     weight_matrix_n : np.ndarray = np.zeros((N, N))
 
@@ -90,74 +91,30 @@ def exponential_weight_matrix(n : int, N : int) -> np.ndarray:
 
     return weight_matrix_n
 
-def forecast(
-    speed : int,
-    futures : list[Future],
-    risk_object : RiskMeasure[Future]) -> npt.NDArray[np.float64]:
-
-    std : pd.DataFrame = risk_object.get_var().to_standard_deviation().annualize().to_frame()
-    prices : pd.DataFrame = pd.DataFrame()
-
-    for future in futures:
-        if prices.empty:
-            prices = future.front.backadjusted
-        else:
-            prices = prices.join(future.front.backadjusted)
-
-    prices.dropna(inplace=True)
-    std.dropna(inplace=True)
-
-    prices_matrix : np.ndarray = prices.to_numpy()
-    std_matrix : np.ndarray = std.to_numpy()
-
-    std_price = np.array(prices_matrix * std_matrix)
-
-    N = len(prices)
-
-    weight_matrix_n = exponential_weight_matrix(speed, N)
-    weight_matrix_4n = exponential_weight_matrix(4 * speed, N)
-
-    y_n = prices_matrix @ weight_matrix_n
-    y_4n = prices_matrix @ weight_matrix_4n
-
-    trend = np.array(y_n - y_4n)
-
-    normalized_trend = trend / std_price
-
-    return normalized_trend
-
 def raw_forecast(
-    n : int,
-    futures : list[Future],
-    risk_object : RiskMeasure[Future]
+    speed : int,
+    prices : pd.DataFrame,
+    annualized_std : pd.DataFrame
     ) -> npt.NDArray[np.float64]:
 
-    std : StandardDeviation = risk_object.get_var().to_standard_deviation().annualize()
+    prices_matrix : np.ndarray = prices.to_numpy(dtype=np.float64)
+    std_matrix : np.ndarray = annualized_std.to_numpy(dtype=np.float64)
 
-    normalized_trend = pd.DataFrame(dtype=np.float64, index=std.index) #np.zeros((len(futures), len(futures[0].front.backadjusted)))
+    std_price : np.ndarray = np.array(prices_matrix * std_matrix)
 
-    for future in futures:
-        std_price_intersection = std[future.name].index.intersection(future.front.backadjusted.index)
-        prices = np.array(future.front.backadjusted.loc[std_price_intersection])
-        std_array = np.array(std[future.name].loc[std_price_intersection])
+    N : int = prices_matrix.shape[0]
 
-        N = len(prices)
+    weight_matrix_n : np.ndarray = exponential_weight_matrix(speed, N)
+    weight_matrix_4n : np.ndarray = exponential_weight_matrix(4 * speed, N)
 
-        weight_matrix_n : np.ndarray = exponential_weight_matrix(n, N) #np.zeros((N, N))
-        weight_matrix_4n : np.ndarray = exponential_weight_matrix(4*n, N) #np.zeros((N, N))
+    y_n : np.ndarray = weight_matrix_n @ prices_matrix
+    y_4n : np.ndarray = weight_matrix_4n @ prices_matrix
 
-        y_n = prices @ weight_matrix_n
-        y_4n = prices @ weight_matrix_4n
+    trend : np.ndarray = np.array(y_n - y_4n)
 
-        trend : np.ndarray = np.array(y_n - y_4n)
+    normalized_trend : np.ndarray = trend / std_price
 
-        normalized_for_vol = trend / np.array(std_array * prices)
-
-        normalized_trend.loc[std_price_intersection, future.name] = normalized_for_vol
-
-    normalized_trend_bfill_np : np.ndarray = normalized_trend.bfill().to_numpy(np.float64)
-
-    return normalized_trend_bfill_np
+    return normalized_trend
 
 def regime_scaling(
     n : int,
@@ -191,9 +148,9 @@ def regime_scaling(
 
     weight_matrix_n : np.ndarray = exponential_weight_matrix(n, N)
 
-    quantiles_np = quantiles.to_numpy(np.float64)
+    quantiles_np : np.ndarray = quantiles.to_numpy(np.float64)
 
-    smoothed_quantiles = weight_matrix_n @ quantiles_np
+    smoothed_quantiles : np.ndarray = weight_matrix_n @ quantiles_np
 
     multipliers : np.ndarray = 2 * np.ones((N, 1)) - 1.5 * smoothed_quantiles
 
@@ -218,10 +175,27 @@ def fdm(
     return FDM
 
 def regime_scaled_trend(speed : int, risk_object : RiskMeasure, futures : list[Future]) -> pd.DataFrame:
-    raw_F : np.ndarray = raw_forecast(speed, futures, risk_object)
+    annualized_std = risk_object.get_var().to_standard_deviation().annualize().to_frame()
+    
+    prices : pd.DataFrame = pd.DataFrame()
+
+    for future in futures:
+        if prices.empty:
+            prices = future.front.backadjusted.to_frame(future.name)
+        else:
+            prices = prices.join(future.front.backadjusted.to_frame(future.name), how="outer")
+
+    prices.dropna(inplace=True)
+    annualized_std.dropna(inplace=True)
+
+    intersection = prices.index.intersection(annualized_std.index)
+    prices = prices.loc[intersection]
+    annualized_std = annualized_std.loc[intersection]
+
+    raw_F : np.ndarray = raw_forecast(speed, prices, annualized_std)
     regime_scalar : np.ndarray = regime_scaling(10, risk_object)
 
-    forecast : pd.DataFrame = pd.DataFrame(raw_F * regime_scalar, columns=[future.name for future in futures])
+    forecast : pd.DataFrame = pd.DataFrame(raw_F * regime_scalar, columns=[future.name for future in futures], index=intersection)
     normalized_forecast : pd.DataFrame = forecast.div(forecast.abs().mean().mean())
 
     return normalized_forecast
@@ -233,18 +207,6 @@ def trend_signals(
         speeds : list[int],
         bounds : tuple[int, int] = (-2, 2)
     ) -> pd.DataFrame:
-
-    annualized_std : pd.DataFrame = risk_object.get_var().to_standard_deviation().annualize().to_frame()
-
-    prices : pd.DataFrame = pd.DataFrame()
-
-    for future in futures:
-        if prices.empty:
-            prices = future.front.get_close().to_frame(future.name)
-        else:
-            prices = prices.join(future.front.get_close().to_frame(future.name), how="outer")
-
-
 
     forecasts : list[pd.DataFrame] = [trend_function(speed, risk_object, futures).clip(bounds[0], bounds[1]) for speed in speeds]
 
@@ -259,9 +221,9 @@ def trend_signals(
 
     average_forecasts /= len(forecasts)
 
-    trend_signals = (FDM * average_forecasts).clip(bounds[0], bounds[1])
+    signals = (FDM * average_forecasts).clip(bounds[0], bounds[1])
 
-    return trend_signals
+    return signals
 
 def IDM(risk_object : RiskMeasure[Future]) -> pd.DataFrame:
     """ IDM = 1 / √(w.ρ.wᵀ) where w is the weight vector and ρ is the correlation matrix """
