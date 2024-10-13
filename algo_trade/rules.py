@@ -222,7 +222,7 @@ def trend_signals(
 
     weights : np.ndarray = np.ones((len(speeds), 1), dtype=np.float64) / len(forecasts)
 
-    FDM : float = fdm(weights, forecasts)
+    FDM : np.ndarray = fdm(weights, forecasts)
 
     average_forecasts = pd.DataFrame(0, index=forecasts[0].index, columns=[future.name for future in futures])
 
