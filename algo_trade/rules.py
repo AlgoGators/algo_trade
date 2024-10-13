@@ -159,7 +159,7 @@ def regime_scaling(
 def fdm(
     weights : np.ndarray,
     forecasts : list[pd.DataFrame]
-    ) -> float:
+    ) -> npt.NDArray[np.float64]:
 
     if not forecasts:
         raise ValueError("At least one forecast is required")
@@ -168,11 +168,21 @@ def fdm(
 
     forecast_df = pd.DataFrame(np.column_stack(flattened_forecasts))
 
-    correlation_matrix = forecast_df.corr().clip(lower=0)
+    # calculate FDM every year
+    correlation_matrices : list[pd.DataFrame] = []
 
-    FDM : float = 1 / np.sqrt(weights.T @ correlation_matrix.to_numpy(dtype=np.float64) @ weights).item()
+    for i in range(0, len(forecast_df), DAYS_IN_YEAR):
+        correlation_matrix = forecast_df.iloc[:i+DAYS_IN_YEAR].corr().clip(lower=0)
+        correlation_matrices.append(correlation_matrix)
 
-    return FDM
+    FDMs_lst : list[np.ndarray] = []
+    for correlation_matrix in correlation_matrices:
+        FDM = 1 / np.sqrt(weights.T @ correlation_matrix.to_numpy(dtype=np.float64) @ weights).item()
+        FDMs_lst.append(np.ones((256, 1), dtype=np.float64) * FDM)
+
+    FDMs : np.ndarray = np.concatenate([FDMs_lst[0], *FDMs_lst])
+
+    return FDMs[:len(forecast_df)]
 
 def regime_scaled_trend(speed : int, risk_object : RiskMeasure, futures : list[Future]) -> pd.DataFrame:
     annualized_std = risk_object.get_var().to_standard_deviation().annualize().to_frame()
