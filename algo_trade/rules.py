@@ -118,23 +118,17 @@ def raw_forecast(
 
 def regime_scaling(
     n : int,
-    risk_object : RiskMeasure[Future]
+    annualized_std : pd.DataFrame
     ) -> npt.NDArray[np.float64]:
 
     rolling_vol_means : pd.DataFrame = (
-        risk_object
-        .get_var()
-        .to_standard_deviation()
-        .to_frame()
+        annualized_std
         .rolling(window=DAYS_IN_YEAR*10, min_periods=DAYS_IN_YEAR)
         .mean()
     )
 
     relative_vol : pd.DataFrame = (
-        risk_object
-        .get_var()
-        .to_standard_deviation()
-        .to_frame()
+        annualized_std
         .div(rolling_vol_means)
     )
 
@@ -164,6 +158,8 @@ def fdm(
     if not forecasts:
         raise ValueError("At least one forecast is required")
 
+    single_forecast_length = len(forecasts[0])
+
     flattened_forecasts = [forecast.to_numpy(dtype=np.float64).flatten() for forecast in forecasts]
 
     forecast_df = pd.DataFrame(np.column_stack(flattened_forecasts))
@@ -171,7 +167,7 @@ def fdm(
     # calculate FDM every year
     correlation_matrices : list[pd.DataFrame] = []
 
-    for i in range(0, len(forecast_df), DAYS_IN_YEAR):
+    for i in range(0, single_forecast_length, DAYS_IN_YEAR):
         correlation_matrix = forecast_df.iloc[:i+DAYS_IN_YEAR].corr().clip(lower=0)
         correlation_matrices.append(correlation_matrix)
 
@@ -182,11 +178,16 @@ def fdm(
 
     FDMs : np.ndarray = np.concatenate([FDMs_lst[0], *FDMs_lst])
 
-    return FDMs[:len(forecast_df)]
+    return FDMs[:single_forecast_length]
 
-def regime_scaled_trend(speed : int, risk_object : RiskMeasure, futures : list[Future]) -> pd.DataFrame:
+def regime_scaled_trend(
+        speed : int,
+        risk_object : RiskMeasure,
+        futures : list[Future]
+    ) -> pd.DataFrame:
+
     annualized_std = risk_object.get_var().to_standard_deviation().annualize().to_frame()
-    
+
     prices : pd.DataFrame = pd.DataFrame()
 
     for future in futures:
@@ -203,7 +204,7 @@ def regime_scaled_trend(speed : int, risk_object : RiskMeasure, futures : list[F
     annualized_std = annualized_std.loc[intersection]
 
     raw_F : np.ndarray = raw_forecast(speed, prices, annualized_std)
-    regime_scalar : np.ndarray = regime_scaling(10, risk_object)
+    regime_scalar : np.ndarray = regime_scaling(10, annualized_std)
 
     forecast : pd.DataFrame = pd.DataFrame(raw_F * regime_scalar, columns=[future.name for future in futures], index=intersection)
     normalized_forecast : pd.DataFrame = forecast.div(forecast.abs().mean().mean())
